@@ -1,7 +1,8 @@
 use chrono::NaiveDateTime;
+use log::debug;
 use reqwest::Url;
 use serde::{Deserialize, de::DeserializeOwned};
-use std::error::Error;
+use std::{error::Error, fmt::Debug};
 
 pub type ApiResult<T> = Result<T, Box<dyn Error>>;
 pub struct Client {
@@ -11,6 +12,7 @@ pub struct Client {
 }
 impl Client {
     pub fn new(base_url: &str, token: String) -> Result<Self, Box<dyn Error>> {
+        debug!("Spawning new libveezi Client for API base: {base_url}");
         let base = Url::parse(base_url)?;
         let http = reqwest::Client::new();
         Ok(Client { http, base, token })
@@ -18,9 +20,12 @@ impl Client {
 
     async fn get_json<T>(&self, endpoint: &str) -> ApiResult<T>
     where
-        T: DeserializeOwned,
+        T: DeserializeOwned + Debug,
     {
         let url = self.base.join(endpoint)?;
+
+        debug!(target: "libveezi-http", "GET {url}");
+
         let resp = self
             .http
             .get(url)
@@ -30,6 +35,8 @@ impl Client {
             .error_for_status()?
             .json::<T>()
             .await?;
+
+        debug!(target: "libveezi-http", "OK: {:?}", resp);
 
         Ok(resp)
     }

@@ -1,7 +1,16 @@
 [package]
 name = "libveezi"
 version = "0.1.0"
+authors = ["Logan Devine <logan@noyotheater.com>"]
 edition = "2024"
+description = "A Rust client for the Veezi API"
+documentation = "https://docs.rs/libveezi"
+readme = "README.md"
+repository = "https://github.com/NoyoTheater/libveezi"
+license = "MIT"
+license_file = "LICENSE"
+keywords = ["veezi", "api", "client", "theater", "cinema"]
+categories = ["api-bindings"]
 
 [dependencies]
 chrono = { version = "0.4.42", features = ["serde"] }
@@ -9,4 +18,4 @@ dotenv = "0.15.0"
 log = "0.4.28"
 reqwest = { version = "0.12.24", features = ["json"] }
 serde = { version = "1.0.228", features = ["derive"] }
-tokio = { version = "1.48.0", features = ["full"] }
+url = "2.5.0"

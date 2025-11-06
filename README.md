@@ -14,7 +14,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-libveezi = "0.1.0"
+libveezi = "0.2.0"
 ```
 
 ## Usage

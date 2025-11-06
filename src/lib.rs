@@ -1,5 +1,5 @@
 #![doc = include_str!("../README.md")]
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 use log::debug;
 use reqwest::Url;
 use serde::{Deserialize, de::DeserializeOwned};
@@ -94,8 +94,8 @@ impl Client {
     }
 
     /// Get a list of all future [Session]s.
-    pub async fn list_sessions(&self) -> ApiResult<Vec<Session>> {
-        self.get_json("v1/session").await
+    pub async fn list_sessions(&self) -> ApiResult<SessionList> {
+        Ok(self.get_json::<Vec<Session>>("v1/session").await?.into())
     }
 
     /// Get a list of all future [Session]s that should be available for online sales.
@@ -105,8 +105,8 @@ impl Client {
     /// - [`Session::status`] is `SessionStatus::Open`
     /// - [`Session::show_type`] is `ShowType::Public`
     /// - [`Session::sales_via`] allows [`SalesVia::www`] sales
-    pub async fn list_web_sessions(&self) -> ApiResult<Vec<Session>> {
-        self.get_json("v1/websession").await
+    pub async fn list_web_sessions(&self) -> ApiResult<SessionList> {
+        Ok(self.get_json::<Vec<Session>>("v1/websession").await?.into())
     }
 
     /// Get a specific [Session] by its ID.
@@ -290,6 +290,82 @@ pub struct Person {
     pub role: String,
 }
 
+/// A list of [Session]s with some useful helper methods
+#[derive(Debug, PartialEq)]
+pub struct SessionList(Vec<Session>);
+impl SessionList {
+    /// Obtain the [`Vec<Session>`] contained within this [SessionList]
+    pub fn into_vec(self) -> Vec<Session> {
+        self.0
+    }
+
+    /// Obtain a reference to the internal [`Vec<Session>`] contained within this [SessionList]
+    pub fn as_vec(&self) -> &Vec<Session> {
+        &self.0
+    }
+
+    /// Filter the sessions by a given screen ID, returning a new [SessionList]
+    pub fn filter_by_screen(self, screen_id: u32) -> SessionList {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| session.screen_id == screen_id)
+            .collect();
+        SessionList(filtered)
+    }
+
+    /// Filter the sessions by a given film ID, returning a new [SessionList]
+    pub fn filter_by_film(self, film_id: &str) -> SessionList {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| session.film_id == film_id)
+            .collect();
+        SessionList(filtered)
+    }
+
+    /// Filter the sessions to only those containing a given attribute ID, returning a new [SessionList]
+    pub fn filter_containing_attribute(self, attribute_id: &str) -> SessionList {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| session.attributes.contains(&attribute_id.to_string()))
+            .collect();
+        SessionList(filtered)
+    }
+
+    /// Filter sessions whose `pre_show_start_time` is within the given date range, returning a new [SessionList]
+    pub fn filter_by_date_range(self, start: NaiveDate, end: NaiveDate) -> SessionList {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| {
+                let date = session.pre_show_start_time.date();
+                date >= start && date <= end
+            })
+            .collect();
+        SessionList(filtered)
+    }
+}
+impl From<Vec<Session>> for SessionList {
+    fn from(sessions: Vec<Session>) -> Self {
+        SessionList(sessions)
+    }
+}
+impl From<SessionList> for Vec<Session> {
+    fn from(val: SessionList) -> Self {
+        val.0
+    }
+}
+impl IntoIterator for SessionList {
+    type Item = Session;
+    type IntoIter = std::vec::IntoIter<Session>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 /// A particular screening session of a [Film]
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
@@ -441,13 +517,8 @@ pub struct Film {
 }
 impl Film {
     /// Get a list of all future [Session]s for this [Film]
-    pub async fn sessions(&self, client: &Client) -> ApiResult<Vec<Session>> {
-        let all_sessions = client.list_sessions().await?;
-        let film_sessions: Vec<Session> = all_sessions
-            .into_iter()
-            .filter(|session| session.film_id == self.id)
-            .collect();
-        Ok(film_sessions)
+    pub async fn sessions(&self, client: &Client) -> ApiResult<SessionList> {
+        Ok(client.list_sessions().await?.filter_by_film(&self.id))
     }
 
     /// Get a list of all future [Session]s for this [Film] that should be available for online sales.
@@ -457,13 +528,8 @@ impl Film {
     /// - [`Session::status`] is `SessionStatus::Open`
     /// - [`Session::show_type`] is `ShowType::Public`
     /// - [`Session::sales_via`] allows [`SalesVia::www`] sales
-    pub async fn web_sessions(&self, client: &Client) -> ApiResult<Vec<Session>> {
-        let all_sessions = client.list_web_sessions().await?;
-        let film_sessions: Vec<Session> = all_sessions
-            .into_iter()
-            .filter(|session| session.film_id == self.id)
-            .collect();
-        Ok(film_sessions)
+    pub async fn web_sessions(&self, client: &Client) -> ApiResult<SessionList> {
+        Ok(client.list_web_sessions().await?.filter_by_film(&self.id))
     }
 
     /// Format the duration of the film as "Xh Ym" or "Xh"
@@ -535,13 +601,8 @@ pub struct Screen {
 }
 impl Screen {
     /// Get a list of all future [Session]s for this [Screen]
-    pub async fn sessions(&self, client: &Client) -> ApiResult<Vec<Session>> {
-        let all_sessions = client.list_sessions().await?;
-        let screen_sessions: Vec<Session> = all_sessions
-            .into_iter()
-            .filter(|session| session.screen_id == self.id)
-            .collect();
-        Ok(screen_sessions)
+    pub async fn sessions(&self, client: &Client) -> ApiResult<SessionList> {
+        Ok(client.list_sessions().await?.filter_by_screen(self.id))
     }
 }
 
@@ -593,12 +654,10 @@ pub struct Attribute {
     pub show_on_sessions_with_no_comps: bool,
 }
 impl Attribute {
-    pub async fn sessions(&self, client: &Client) -> ApiResult<Vec<Session>> {
-        let all_sessions = client.list_sessions().await?;
-        let attribute_sessions: Vec<Session> = all_sessions
-            .into_iter()
-            .filter(|session| session.attributes.contains(&self.id))
-            .collect();
-        Ok(attribute_sessions)
+    pub async fn sessions(&self, client: &Client) -> ApiResult<SessionList> {
+        Ok(client
+            .list_sessions()
+            .await?
+            .filter_containing_attribute(&self.id))
     }
 }

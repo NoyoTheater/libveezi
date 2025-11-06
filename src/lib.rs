@@ -176,7 +176,7 @@ where
 }
 
 /// The seating type for a particular [Session]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub enum Seating {
     /// Allocated (reserved) seating
@@ -187,7 +187,7 @@ pub enum Seating {
 }
 
 /// The show type for a particular [Session]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub enum ShowType {
     /// Private show not available to the general public
@@ -197,7 +197,7 @@ pub enum ShowType {
 }
 
 /// The status of a particular [Session]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub enum SessionStatus {
     /// Open, tickets can be sold
@@ -209,7 +209,7 @@ pub enum SessionStatus {
 }
 
 /// The status of a particular [Film]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub enum FilmStatus {
     /// Film is active and can be scheduled
@@ -221,7 +221,7 @@ pub enum FilmStatus {
 }
 
 /// The format of a particular [Film]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub enum FilmFormat {
     #[serde(rename = "2D Film")]
     Film2D,
@@ -236,7 +236,7 @@ pub enum FilmFormat {
 }
 
 /// The sales channels via which tickets for a particular [Session] can be sold
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SalesVia {
     /// Whether tickets can be sold via KIOSK
     pub kiosk: bool,
@@ -277,7 +277,7 @@ impl<'de> Deserialize<'de> for SalesVia {
 }
 
 /// A particular person associated with a [Film]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Person {
     /// The unique ID of the person
@@ -291,7 +291,7 @@ pub struct Person {
 }
 
 /// A particular screening session of a [Film]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Session {
     /// The unique ID of the session
@@ -376,10 +376,18 @@ impl Session {
         }
         Ok(attrs)
     }
+
+    /// Returns whether tickets can still be sold for this session
+    pub fn is_open_for_sales(&self) -> bool {
+        let now = chrono::Utc::now().naive_utc();
+        self.status == SessionStatus::Open
+            && now < self.sales_cut_off_time
+            && self.seats_available > 0
+    }
 }
 
 /// A particular film in the Veezi system
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Film {
     /// The unique ID of the film
@@ -441,10 +449,37 @@ impl Film {
             .collect();
         Ok(film_sessions)
     }
+
+    /// Get a list of all future [Session]s for this [Film] that should be available for online sales.
+    ///
+    /// This asserts the following for each [Session]:
+    /// - [`Session::sales_cut_off_time`] is in the future
+    /// - [`Session::status`] is `SessionStatus::Open`
+    /// - [`Session::show_type`] is `ShowType::Public`
+    /// - [`Session::sales_via`] allows [`SalesVia::www`] sales
+    pub async fn web_sessions(&self, client: &Client) -> ApiResult<Vec<Session>> {
+        let all_sessions = client.list_web_sessions().await?;
+        let film_sessions: Vec<Session> = all_sessions
+            .into_iter()
+            .filter(|session| session.film_id == self.id)
+            .collect();
+        Ok(film_sessions)
+    }
+
+    /// Format the duration of the film as "Xh Ym" or "Xh"
+    pub fn formatted_duration(&self) -> String {
+        let hours = self.duration / 60;
+        let minutes = self.duration % 60;
+        if minutes == 0 {
+            format!("{}h", hours)
+        } else {
+            format!("{}h {}m", hours, minutes)
+        }
+    }
 }
 
 /// A particular film within a [FilmPackage]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct PackageFilm {
     /// The unique ID of the film
@@ -468,7 +503,7 @@ impl PackageFilm {
 }
 
 /// A package of [PackageFilm]s in the Veezi system ("double feature")
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct FilmPackage {
     /// The unique ID of the film package
@@ -482,7 +517,7 @@ pub struct FilmPackage {
 }
 
 /// A particular screen (auditorium) in the Veezi system
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Screen {
     /// The unique ID of the screen
@@ -511,7 +546,7 @@ impl Screen {
 }
 
 /// Information about the current Veezi site
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Site {
     pub name: String,
@@ -541,7 +576,7 @@ pub struct Site {
 }
 
 /// An attribute that can be associated with [Session]s
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Attribute {
     /// The unique ID of the attribute

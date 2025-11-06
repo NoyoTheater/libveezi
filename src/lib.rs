@@ -50,12 +50,24 @@ pub struct Client {
     token: String,
 }
 impl Client {
-    /// Create a new Veezi API client from the given base URL and access token
-    pub fn new(base_url: &str, token: String) -> Result<Self, url::ParseError> {
+    /// Create a new Veezi API client from a given base URL, access token, and [`reqwest::Client`]
+    pub fn new_with_http(
+        base_url: &str,
+        token: String,
+        http_client: reqwest::Client,
+    ) -> Result<Self, url::ParseError> {
         debug!("Spawning new libveezi Client for API base: {base_url}");
         let base = Url::parse(base_url)?;
-        let http = reqwest::Client::new();
-        Ok(Client { http, base, token })
+        Ok(Client {
+            http: http_client,
+            base,
+            token,
+        })
+    }
+
+    /// Create a new Veezi API client from the given base URL and access token
+    pub fn new(base_url: &str, token: String) -> Result<Self, url::ParseError> {
+        Self::new_with_http(base_url, token, reqwest::Client::new())
     }
 
     async fn get_json<T>(&self, endpoint: &str) -> ApiResult<T>

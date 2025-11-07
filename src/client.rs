@@ -314,9 +314,9 @@ impl Client {
     ///
     /// This asserts the following for each [Session]:
     /// - [`Session::sales_cut_off_time`] is in the future
-    /// - [`Session::status`] is `SessionStatus::Open`
-    /// - [`Session::show_type`] is `ShowType::Public`
-    /// - [`Session::sales_via`] allows [`SalesVia::www`] sales
+    /// - [`Session::status`] is [`crate::session::SessionStatus::Open`]
+    /// - [`Session::show_type`] is [`crate::session::ShowType::Public`]
+    /// - [`Session::sales_via`] allows [`crate::session::SalesVia::www`] sales
     ///
     /// # Errors
     ///

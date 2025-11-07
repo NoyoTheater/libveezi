@@ -1,4 +1,5 @@
-//! [`Attribute`]s that can be associated with [`Session`]s and [`Film`]s
+//! [`Attribute`]s that can be associated with [`crate::session::Session`]s and
+//! [`crate::film::Film`]s
 
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -32,7 +33,7 @@ impl Display for AttributeId {
     }
 }
 
-/// An attribute that can be associated with [Session]s
+/// An attribute that can be associated with [`crate::session::Session`]s
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Attribute {
@@ -51,7 +52,8 @@ pub struct Attribute {
     pub show_on_sessions_with_no_comps: bool,
 }
 impl Attribute {
-    /// Get a list of all future [Session]s containing this [Attribute]
+    /// Get a list of all future [`crate::session::Session`]s containing this
+    /// [`Attribute`]
     ///
     /// # Errors
     ///

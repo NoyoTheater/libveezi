@@ -7,9 +7,11 @@ use std::fmt::{self, Debug, Display, Formatter};
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
+#[allow(unused_imports)] // for docs
+use crate::session::{SalesVia, Session, SessionStatus, ShowType};
 use crate::{client::Client, error::ApiResult, session::SessionList};
 
-/// The status of a particular [Film]
+/// The status of a particular [`Film`]
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "PascalCase")]
 pub enum FilmStatus {
@@ -21,7 +23,7 @@ pub enum FilmStatus {
     Deleted,
 }
 
-/// The format of a particular [Film]
+/// The format of a particular [`Film`]
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FilmFormat {
     /// A 2D film
@@ -152,7 +154,7 @@ pub struct Film {
     pub film_trailer_url: Option<String>,
 }
 impl Film {
-    /// Get a list of all future [Session]s for this [Film]
+    /// Get a list of all future [`Session`]s for this [`Film`]
     ///
     /// # Errors
     ///
@@ -161,13 +163,13 @@ impl Film {
         Ok(client.list_sessions().await?.filter_by_film(&self.id))
     }
 
-    /// Get a list of all future [Session]s for this [Film] that should be
+    /// Get a list of all future [Session]s for this [`Film`] that should be
     /// available for online sales.
     ///
     /// This asserts the following for each [Session]:
     /// - [`Session::sales_cut_off_time`] is in the future
-    /// - [`Session::status`] is `SessionStatus::Open`
-    /// - [`Session::show_type`] is `ShowType::Public`
+    /// - [`Session::status`] is [`SessionStatus::Open`]
+    /// - [`Session::show_type`] is [`ShowType::Public`]
     /// - [`Session::sales_via`] allows [`SalesVia::www`] sales
     ///
     /// # Errors

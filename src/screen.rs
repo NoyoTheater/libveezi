@@ -1,4 +1,4 @@
-//! A [`Screen`] on a specific Veezi [`Site`]
+//! A [`Screen`] on a specific Veezi [`crate::site::Site`]
 
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -50,7 +50,8 @@ pub struct Screen {
     pub house_seats: u32,
 }
 impl Screen {
-    /// Get a list of all future [Session]s for this [`Screen`]
+    /// Get a list of all future [`crate::session::Session`]s for this
+    /// [`Screen`]
     ///
     /// # Errors
     ///

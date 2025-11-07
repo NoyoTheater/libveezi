@@ -188,6 +188,7 @@ impl SessionList {
                 grouped.push((date, vec![session]));
             }
         }
+        grouped.sort_by(|(a, _), (b, _)| a.cmp(b));
         grouped
     }
 

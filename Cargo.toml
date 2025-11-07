@@ -1,6 +1,6 @@
 [package]
 name = "libveezi"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Logan Devine <logan@noyotheater.com>"]
 edition = "2024"
 description = "A Rust client for the Veezi API"
@@ -8,7 +8,6 @@ documentation = "https://docs.rs/libveezi"
 readme = "README.md"
 repository = "https://github.com/NoyoTheater/libveezi"
 license = "MIT"
-license_file = "LICENSE"
 keywords = ["veezi", "api", "client", "theater", "cinema"]
 categories = ["api-bindings"]
 

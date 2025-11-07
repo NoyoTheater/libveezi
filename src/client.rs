@@ -309,10 +309,10 @@ impl Client {
         }
     }
 
-    /// Get a list of all future [Session]s that should be available for online
-    /// sales.
+    /// Get a list of all future [`Session`]s that should be available for
+    /// online sales.
     ///
-    /// This asserts the following for each [Session]:
+    /// This asserts the following for each [`Session`]:
     /// - [`Session::sales_cut_off_time`] is in the future
     /// - [`Session::status`] is [`crate::session::SessionStatus::Open`]
     /// - [`Session::show_type`] is [`crate::session::ShowType::Public`]

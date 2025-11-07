@@ -7,6 +7,7 @@ use reqwest::Url;
 use serde::de::DeserializeOwned;
 
 use crate::{
+    AttributeId, FilmId, FilmPackageId, ScreenId, SessionId,
     attr::Attribute,
     error::ApiResult,
     film::Film,
@@ -114,7 +115,7 @@ impl Client {
     /// # Errors
     ///
     /// This function will return an error if the API request fails.
-    pub async fn get_session(&self, id: u32) -> ApiResult<Session> {
+    pub async fn get_session(&self, id: SessionId) -> ApiResult<Session> {
         self.get_json(&format!("v1/session/{id}")).await
     }
 
@@ -132,7 +133,7 @@ impl Client {
     /// # Errors
     ///
     /// This function will return an error if the API request fails.
-    pub async fn get_film(&self, id: &str) -> ApiResult<Film> {
+    pub async fn get_film(&self, id: &FilmId) -> ApiResult<Film> {
         self.get_json(&format!("v4/film/{id}")).await
     }
 
@@ -150,7 +151,7 @@ impl Client {
     /// # Errors
     ///
     /// This function will return an error if the API request fails.
-    pub async fn get_film_package(&self, id: u32) -> ApiResult<FilmPackage> {
+    pub async fn get_film_package(&self, id: FilmPackageId) -> ApiResult<FilmPackage> {
         self.get_json(&format!("v1/filmpackage/{id}")).await
     }
 
@@ -168,7 +169,7 @@ impl Client {
     /// # Errors
     ///
     /// This function will return an error if the API request fails.
-    pub async fn get_screen(&self, id: u32) -> ApiResult<Screen> {
+    pub async fn get_screen(&self, id: ScreenId) -> ApiResult<Screen> {
         self.get_json(&format!("v1/screen/{id}")).await
     }
 
@@ -195,7 +196,7 @@ impl Client {
     /// # Errors
     ///
     /// This function will return an error if the API request fails.
-    pub async fn get_attribute(&self, id: &str) -> ApiResult<Attribute> {
+    pub async fn get_attribute(&self, id: &AttributeId) -> ApiResult<Attribute> {
         self.get_json(&format!("v1/attribute/{id}")).await
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! The primary type is [`Film`], which represents a film and its metadata.
 
-use std::fmt::Debug;
+use std::fmt::{self, Debug, Display, Formatter};
 
 use chrono::NaiveDateTime;
 use serde::Deserialize;
@@ -41,12 +41,29 @@ pub enum FilmFormat {
     NotAFilm,
 }
 
+/// The unique ID of a [`Person`]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct PersonId(String);
+impl PersonId {
+    /// Get the string representation of this [`PersonId`]
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+impl Display for PersonId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A particular person associated with a [`Film`]
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Person {
     /// The unique ID of the person
-    pub id: String,
+    pub id: PersonId,
     /// The first name of the person
     pub first_name: String,
     /// The last name of the person
@@ -55,12 +72,38 @@ pub struct Person {
     pub role: String,
 }
 
+/// The unique ID of a [`Film`]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct FilmId(String);
+impl FilmId {
+    /// Get the string representation of this [`FilmId`]
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Fetch the full [`Film`] associated with this [`FilmId`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn fetch(&self, client: &Client) -> ApiResult<Film> {
+        client.get_film(self).await
+    }
+}
+impl Display for FilmId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A particular film in the Veezi system
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Film {
     /// The unique ID of the film
-    pub id: String,
+    pub id: FilmId,
     /// The title of the film
     pub title: String,
     /// The short name of the film (len<=10)

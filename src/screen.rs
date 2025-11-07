@@ -1,17 +1,43 @@
 //! A [`Screen`] on a specific Veezi [`Site`]
 
-use std::fmt::Debug;
+use std::fmt::{self, Debug, Display, Formatter};
 
 use serde::Deserialize;
 
 use crate::{client::Client, error::ApiResult, session::SessionList};
+
+/// The unique ID of a [`Screen`]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[serde(transparent)]
+pub struct ScreenId(u32);
+impl ScreenId {
+    /// Get the numeric ID of this [`ScreenId`]
+    #[must_use]
+    pub const fn into_u32(self) -> u32 {
+        self.0
+    }
+
+    /// Fetch the full [`Screen`] associated with this [`ScreenId`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn fetch(self, client: &Client) -> ApiResult<Screen> {
+        client.get_screen(self).await
+    }
+}
+impl Display for ScreenId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 /// A particular screen (auditorium) in the Veezi system
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Screen {
     /// The unique ID of the screen
-    pub id: u32,
+    pub id: ScreenId,
     /// The name of the screen
     pub name: String,
     /// The screen number as a string

@@ -3,12 +3,16 @@
 //! The primary type is [`Session`], which represents a single screening session
 //! of a film at a specific time.
 
-use std::{fmt::Debug, vec::IntoIter};
+use std::{
+    fmt::{self, Debug, Display, Formatter},
+    vec::IntoIter,
+};
 
 use chrono::{NaiveDate, NaiveDateTime};
 use serde::Deserialize;
 
 use crate::{
+    AttributeId, FilmId, FilmPackageId, ScreenId,
     attr::Attribute,
     client::Client,
     error::ApiResult,
@@ -113,7 +117,7 @@ impl SessionList {
     /// Filter the sessions by a given screen ID, returning a new
     /// [`SessionList`]
     #[must_use]
-    pub fn filter_by_screen(self, screen_id: u32) -> Self {
+    pub fn filter_by_screen(self, screen_id: ScreenId) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
@@ -124,11 +128,11 @@ impl SessionList {
 
     /// Filter the sessions by a given film ID, returning a new [`SessionList`]
     #[must_use]
-    pub fn filter_by_film(self, film_id: &str) -> Self {
+    pub fn filter_by_film(self, film_id: &FilmId) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
-            .filter(|session| session.film_id == film_id)
+            .filter(|session| session.film_id == *film_id)
             .collect();
         Self(filtered)
     }
@@ -136,11 +140,11 @@ impl SessionList {
     /// Filter the sessions to only those containing a given attribute ID,
     /// returning a new [`SessionList`]
     #[must_use]
-    pub fn filter_containing_attribute(self, attribute_id: &str) -> Self {
+    pub fn filter_containing_attribute(self, attribute_id: &AttributeId) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
-            .filter(|session| session.attributes.contains(&attribute_id.to_string()))
+            .filter(|session| session.attributes.contains(attribute_id))
             .collect();
         Self(filtered)
     }
@@ -179,6 +183,32 @@ impl IntoIterator for SessionList {
     }
 }
 
+/// The unique ID of a [`Session`]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[serde(transparent)]
+pub struct SessionId(u32);
+impl SessionId {
+    /// Get the numeric ID of this [`SessionId`]
+    #[must_use]
+    pub const fn into_u32(self) -> u32 {
+        self.0
+    }
+
+    /// Fetch the full [`Session`] associated with this [`SessionId`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn fetch(self, client: &Client) -> ApiResult<Session> {
+        client.get_session(self).await
+    }
+}
+impl Display for SessionId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A particular screening session of a [Film]
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
@@ -186,13 +216,13 @@ pub struct Session {
     /// The unique ID of the session
     pub id: u32,
     /// The ID of the film being shown in this session
-    pub film_id: String,
+    pub film_id: FilmId,
     /// The ID of the film package (if any) associated with this session
-    pub film_package_id: Option<u32>,
+    pub film_package_id: Option<FilmPackageId>,
     /// The title of the film being shown in this session
     pub title: String,
     /// The screen ID where this session is being shown
-    pub screen_id: u32,
+    pub screen_id: ScreenId,
     /// The seating type for this session
     pub seating: Seating,
     /// Whether complimentary tickets are allowed for this session
@@ -230,7 +260,7 @@ pub struct Session {
     /// The price card name associated with this session
     pub price_card_name: String,
     /// The list of attribute IDs associated with this session
-    pub attributes: Vec<String>,
+    pub attributes: Vec<AttributeId>,
     /// The audio language of the film being shown in this session
     pub audio_language: Option<String>,
 }

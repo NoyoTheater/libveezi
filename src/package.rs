@@ -4,11 +4,12 @@
 //! The primary type is [`FilmPackage`], which represents a film package and its
 //! metadata.
 
-use std::fmt::Debug;
+use std::fmt::{self, Debug, Display, Formatter};
 
 use serde::Deserialize;
 
 use crate::{
+    FilmId,
     client::Client,
     error::ApiResult,
     film::{Film, FilmStatus},
@@ -19,7 +20,7 @@ use crate::{
 #[serde(rename_all = "PascalCase")]
 pub struct PackageFilm {
     /// The unique ID of the film
-    pub film_id: String,
+    pub film_id: FilmId,
     /// The title of the film
     pub title: String,
     /// What percent of the box office this film receives within the package
@@ -42,12 +43,38 @@ impl PackageFilm {
     }
 }
 
+/// The unique ID of a [`FilmPackage`]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[serde(transparent)]
+pub struct FilmPackageId(u32);
+impl FilmPackageId {
+    /// Get the numeric ID of this [`FilmPackageId`]
+    #[must_use]
+    pub const fn into_u32(self) -> u32 {
+        self.0
+    }
+
+    /// Fetch the full [`FilmPackage`] associated with this [`FilmPackageId`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn fetch(self, client: &Client) -> ApiResult<FilmPackage> {
+        client.get_film_package(self).await
+    }
+}
+impl Display for FilmPackageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A package of [`PackageFilm`]s in the Veezi system ("double feature")
 #[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct FilmPackage {
     /// The unique ID of the film package
-    pub id: u32,
+    pub id: FilmPackageId,
     /// The title of the film package
     pub title: String,
     /// The current status of the film package

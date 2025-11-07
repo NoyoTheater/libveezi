@@ -10,7 +10,7 @@ use serde::Deserialize;
 use crate::{client::Client, error::ApiResult, session::SessionList};
 
 /// The status of a particular [Film]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "PascalCase")]
 pub enum FilmStatus {
     /// Film is active and can be scheduled
@@ -22,7 +22,7 @@ pub enum FilmStatus {
 }
 
 /// The format of a particular [Film]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FilmFormat {
     /// A 2D film
     #[serde(rename = "2D Film")]
@@ -42,7 +42,7 @@ pub enum FilmFormat {
 }
 
 /// The unique ID of a [`Person`]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
 #[serde(transparent)]
 pub struct PersonId(String);
 impl PersonId {
@@ -59,7 +59,7 @@ impl Display for PersonId {
 }
 
 /// A particular person associated with a [`Film`]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
 #[serde(rename_all = "PascalCase")]
 pub struct Person {
     /// The unique ID of the person
@@ -73,7 +73,7 @@ pub struct Person {
 }
 
 /// The unique ID of a [`Film`]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
 #[serde(transparent)]
 pub struct FilmId(String);
 impl FilmId {
@@ -99,7 +99,7 @@ impl Display for FilmId {
 }
 
 /// A particular film in the Veezi system
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Film {
     /// The unique ID of the film

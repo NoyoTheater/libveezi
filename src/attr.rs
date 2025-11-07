@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::{client::Client, error::ApiResult, session::SessionList};
 
 /// The unique ID of an [`Attribute`]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
 #[serde(transparent)]
 pub struct AttributeId(String);
 impl AttributeId {
@@ -33,7 +33,7 @@ impl Display for AttributeId {
 }
 
 /// An attribute that can be associated with [Session]s
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Attribute {
     /// The unique ID of the attribute

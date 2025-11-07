@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// The seating type for a particular [Session]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "PascalCase")]
 pub enum Seating {
     /// Allocated (reserved) seating
@@ -33,7 +33,7 @@ pub enum Seating {
 }
 
 /// The show type for a particular [Session]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "PascalCase")]
 pub enum ShowType {
     /// Private show not available to the general public
@@ -43,7 +43,7 @@ pub enum ShowType {
 }
 
 /// The status of a particular [Session]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "PascalCase")]
 pub enum SessionStatus {
     /// Open, tickets can be sold
@@ -55,7 +55,7 @@ pub enum SessionStatus {
 }
 
 /// The sales channels via which tickets for a particular [Session] can be sold
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[allow(clippy::struct_excessive_bools)] // this is not a state machine like clippy assumes
 pub struct SalesVia {
     /// Whether tickets can be sold via KIOSK
@@ -97,7 +97,7 @@ impl<'de> Deserialize<'de> for SalesVia {
 }
 
 /// A list of [Session]s with some useful helper methods
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SessionList(Vec<Session>);
 impl SessionList {
     /// Obtain the [`Vec<Session>`] contained within this [`SessionList`]
@@ -162,6 +162,11 @@ impl SessionList {
             .collect();
         Self(filtered)
     }
+
+    /// Get an iterator over the sessions in this [`SessionList`]
+    pub fn iter(&self) -> impl Iterator<Item = &Session> {
+        self.0.iter()
+    }
 }
 impl From<Vec<Session>> for SessionList {
     fn from(sessions: Vec<Session>) -> Self {
@@ -183,7 +188,7 @@ impl IntoIterator for SessionList {
 }
 
 /// The unique ID of a [`Session`]
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[serde(transparent)]
 pub struct SessionId(u32);
 impl SessionId {
@@ -209,11 +214,11 @@ impl Display for SessionId {
 }
 
 /// A particular screening session of a [Film]
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Session {
     /// The unique ID of the session
-    pub id: u32,
+    pub id: SessionId,
     /// The ID of the film being shown in this session
     pub film_id: FilmId,
     /// The ID of the film package (if any) associated with this session

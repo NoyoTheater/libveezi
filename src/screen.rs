@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::{client::Client, error::ApiResult, session::SessionList};
 
 /// The unique ID of a [`Screen`]
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[serde(transparent)]
 pub struct ScreenId(u32);
 impl ScreenId {
@@ -33,7 +33,7 @@ impl Display for ScreenId {
 }
 
 /// A particular screen (auditorium) in the Veezi system
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Screen {
     /// The unique ID of the screen

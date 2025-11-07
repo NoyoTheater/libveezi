@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 
 /// Information about the current Veezi site
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Site {
     /// The name of the site

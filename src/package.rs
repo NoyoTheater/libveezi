@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// A particular film within a [`FilmPackage`]
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct PackageFilm {
     /// The unique ID of the film
@@ -43,7 +43,7 @@ impl PackageFilm {
 }
 
 /// The unique ID of a [`FilmPackage`]
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash)]
 #[serde(transparent)]
 pub struct FilmPackageId(u32);
 impl FilmPackageId {
@@ -69,7 +69,7 @@ impl Display for FilmPackageId {
 }
 
 /// A package of [`PackageFilm`]s in the Veezi system ("double feature")
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct FilmPackage {
     /// The unique ID of the film package

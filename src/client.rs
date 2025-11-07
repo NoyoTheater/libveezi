@@ -2,6 +2,7 @@
 
 use std::{fmt::Debug, time::Duration};
 
+use chrono::{NaiveDate, NaiveDateTime};
 use log::debug;
 use moka::future::{Cache, CacheBuilder};
 use reqwest::Url;
@@ -461,6 +462,44 @@ impl Client {
         let film = fetch_raw.await?;
         cache.insert(id.clone(), film.clone()).await;
         Ok(film)
+    }
+
+    /// Get only the films that have sessions scheduled in the included time
+    /// range.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_films_with_sessions_in_time_range(
+        &self,
+        start: NaiveDateTime,
+        end: NaiveDateTime,
+    ) -> ApiResult<Vec<Film>> {
+        // using our existing methods, no http
+        self.list_sessions()
+            .await?
+            .filter_by_time_range(start, end)
+            .films(self)
+            .await
+    }
+
+    /// Get only the films that have sessions scheduled in the included date
+    /// range.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_films_with_sessions_in_date_range(
+        &self,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> ApiResult<Vec<Film>> {
+        // using our existing methods, no http
+        self.list_sessions()
+            .await?
+            .filter_by_date_range(start, end)
+            .films(self)
+            .await
     }
 
     /// Get a list of all [`FilmPackage`]s in the Veezi system.

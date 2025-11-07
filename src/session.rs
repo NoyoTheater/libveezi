@@ -148,19 +148,83 @@ impl SessionList {
         Self(filtered)
     }
 
-    /// Filter sessions whose `pre_show_start_time` is within the given date
+    /// Filter sessions whose `pre_show_start_time` is within the given time
     /// range, returning a new [`SessionList`]
     #[must_use]
-    pub fn filter_by_date_range(self, start: NaiveDate, end: NaiveDate) -> Self {
+    pub fn filter_by_time_range(self, start: NaiveDateTime, end: NaiveDateTime) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
             .filter(|session| {
-                let date = session.pre_show_start_time.date();
+                let date = session.pre_show_start_time;
                 date >= start && date <= end
             })
             .collect();
         Self(filtered)
+    }
+
+    /// Filter sessions whose `pre_show_start_time` is within the given date
+    /// range, returning a new [`SessionList`]
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn filter_by_date_range(self, start: NaiveDate, end: NaiveDate) -> Self {
+        self.filter_by_time_range(
+            start.and_hms_opt(0, 0, 0).expect("midnight should exist"),
+            end.and_hms_opt(0, 0, 0).expect("midnight should exist"),
+        )
+    }
+
+    /// Group a list of sessions by date, returning a vector of tuples where the
+    /// first element is the date and the second element is a vector of
+    /// references to the sessions on that date
+    #[must_use]
+    pub fn group_by_date(&self) -> Vec<(NaiveDate, Vec<&Session>)> {
+        let mut grouped: Vec<(NaiveDate, Vec<&Session>)> = Vec::new();
+        for session in &self.0 {
+            let date = session.pre_show_start_time.date();
+            if let Some((_, sessions)) = grouped.iter_mut().find(|(d, _)| *d == date) {
+                sessions.push(session);
+            } else {
+                grouped.push((date, vec![session]));
+            }
+        }
+        grouped
+    }
+
+    /// Get all of the films represented in this [`SessionList`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the API requests fail.
+    pub async fn films(&self, client: &Client) -> ApiResult<Vec<Film>> {
+        let mut films = Vec::new();
+        let mut seen_ids = Vec::new();
+        for session in &self.0 {
+            if !seen_ids.contains(&session.film_id) {
+                let film = client.get_film(&session.film_id).await?;
+                films.push(film);
+                seen_ids.push(session.film_id.clone());
+            }
+        }
+        Ok(films)
+    }
+
+    /// Get all of the screens represented in this [`SessionList`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the API requests fail.
+    pub async fn screens(&self, client: &Client) -> ApiResult<Vec<Screen>> {
+        let mut screens = Vec::new();
+        let mut seen_ids = Vec::new();
+        for session in &self.0 {
+            if !seen_ids.contains(&session.screen_id) {
+                let screen = client.get_screen(session.screen_id).await?;
+                screens.push(screen);
+                seen_ids.push(session.screen_id);
+            }
+        }
+        Ok(screens)
     }
 
     /// Get an iterator over the sessions in this [`SessionList`]

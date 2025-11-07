@@ -17,7 +17,6 @@
     clippy::format_push_string,
     clippy::if_then_some_else_none,
     clippy::let_underscore_must_use,
-    clippy::min_ident_chars,
     clippy::mixed_read_write_in_expression,
     clippy::multiple_inherent_impl,
     clippy::multiple_unsafe_ops_per_block,

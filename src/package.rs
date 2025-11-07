@@ -9,10 +9,9 @@ use std::fmt::{self, Debug, Display, Formatter};
 use serde::Deserialize;
 
 use crate::{
-    FilmId,
     client::Client,
     error::ApiResult,
-    film::{Film, FilmStatus},
+    film::{Film, FilmId, FilmStatus},
 };
 
 /// A particular film within a [`FilmPackage`]

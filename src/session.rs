@@ -12,13 +12,12 @@ use chrono::{NaiveDate, NaiveDateTime};
 use serde::Deserialize;
 
 use crate::{
-    AttributeId, FilmId, FilmPackageId, ScreenId,
-    attr::Attribute,
+    attr::{Attribute, AttributeId},
     client::Client,
     error::ApiResult,
-    film::{Film, FilmFormat},
-    package::FilmPackage,
-    screen::Screen,
+    film::{Film, FilmFormat, FilmId},
+    package::{FilmPackage, FilmPackageId},
+    screen::{Screen, ScreenId},
 };
 
 /// The seating type for a particular [Session]

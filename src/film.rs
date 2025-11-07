@@ -1,0 +1,133 @@
+//! Types representing screenable films with the Veezi API.
+//!
+//! The primary type is [`Film`], which represents a film and its metadata.
+
+use crate::client::Client;
+use crate::error::ApiResult;
+use crate::session::SessionList;
+use chrono::NaiveDateTime;
+use serde::Deserialize;
+use std::fmt::Debug;
+
+/// The status of a particular [Film]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "PascalCase")]
+pub enum FilmStatus {
+    /// Film is active and can be scheduled
+    Active,
+    /// Film is inactive and cannot be scheduled
+    Inactive,
+    /// Film has been deleted
+    Deleted,
+}
+
+/// The format of a particular [Film]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+pub enum FilmFormat {
+    #[serde(rename = "2D Film")]
+    Film2D,
+    #[serde(rename = "2D Digital")]
+    Digital2D,
+    #[serde(rename = "3D Digital")]
+    Digital3D,
+    #[serde(rename = "3D HFR")]
+    Digital3DHFR,
+    #[serde(rename = "Not a Film")]
+    NotAFilm,
+}
+
+/// A particular person associated with a [Film]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "PascalCase")]
+pub struct Person {
+    /// The unique ID of the person
+    pub id: String,
+    /// The first name of the person
+    pub first_name: String,
+    /// The last name of the person
+    pub last_name: String,
+    /// The role of the person in the film (e.g., Actor, Director)
+    pub role: String,
+}
+
+/// A particular film in the Veezi system
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "PascalCase")]
+pub struct Film {
+    /// The unique ID of the film
+    pub id: String,
+    /// The title of the film
+    pub title: String,
+    /// The short name of the film (len<=10)
+    pub short_name: String,
+    /// The synopsis of the film
+    pub synopsis: Option<String>,
+    /// The genre of the film
+    pub genre: String,
+    /// The signage display name for the film
+    pub signage_text: String,
+    /// The distributor of the film
+    pub distributor: String,
+    /// The opening date of the film
+    pub opening_date: NaiveDateTime,
+    /// The rating of the film (e.g., "PG-13")
+    ///
+    /// If `None`, the film is not rated ("NR")
+    pub rating: Option<String>,
+    /// The current status of the film
+    pub status: FilmStatus,
+    /// The rating's content description ("R for language and violence", etc)
+    pub content: Option<String>,
+    /// The duration of the film in minutes
+    pub duration: u32,
+    /// The display sequence of the film
+    pub display_sequence: u32,
+    /// The film's national code (if any)
+    pub national_code: Option<String>,
+    /// The format of the film
+    pub format: FilmFormat,
+    /// Whether the film is restricted to certain audiences
+    pub is_restricted: bool,
+    /// The list of people associated with the film
+    pub people: Vec<Person>,
+    /// The primary audio language of the film
+    pub audio_language: Option<String>,
+    /// The federal title of the film for box office reporting, if any
+    pub government_film_title: Option<String>,
+    /// The film's poster URL, if any
+    pub film_poster_url: Option<String>,
+    /// The film's poster thumbnail URL
+    pub film_poster_thumbnail_url: String,
+    /// The film's backdrop image URL, if any
+    pub backdrop_image_url: Option<String>,
+    /// The film's trailer URL, if any
+    pub film_trailer_url: Option<String>,
+}
+impl Film {
+    /// Get a list of all future [Session]s for this [Film]
+    pub async fn sessions(&self, client: &Client) -> ApiResult<SessionList> {
+        Ok(client.list_sessions().await?.filter_by_film(&self.id))
+    }
+
+    /// Get a list of all future [Session]s for this [Film] that should be available for online sales.
+    ///
+    /// This asserts the following for each [Session]:
+    /// - [`Session::sales_cut_off_time`] is in the future
+    /// - [`Session::status`] is `SessionStatus::Open`
+    /// - [`Session::show_type`] is `ShowType::Public`
+    /// - [`Session::sales_via`] allows [`SalesVia::www`] sales
+    pub async fn web_sessions(&self, client: &Client) -> ApiResult<SessionList> {
+        Ok(client.list_web_sessions().await?.filter_by_film(&self.id))
+    }
+
+    /// Format the duration of the film as "Xh Ym" or "Xh"
+    pub fn formatted_duration(&self) -> String {
+        let hours = self.duration / 60;
+        let minutes = self.duration % 60;
+        if minutes == 0 {
+            format!("{}h", hours)
+        } else {
+            format!("{}h {}m", hours, minutes)
+        }
+    }
+}

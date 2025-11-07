@@ -3,15 +3,19 @@
 //! The primary type is [`Session`], which represents a single screening session
 //! of a film at a specific time.
 
-use crate::attr::Attribute;
-use crate::client::Client;
-use crate::error::ApiResult;
-use crate::film::{Film, FilmFormat};
-use crate::package::FilmPackage;
-use crate::screen::Screen;
+use std::{fmt::Debug, vec::IntoIter};
+
 use chrono::{NaiveDate, NaiveDateTime};
 use serde::Deserialize;
-use std::fmt::Debug;
+
+use crate::{
+    attr::Attribute,
+    client::Client,
+    error::ApiResult,
+    film::{Film, FilmFormat},
+    package::FilmPackage,
+    screen::Screen,
+};
 
 /// The seating type for a particular [Session]
 #[derive(Deserialize, Debug, PartialEq, Eq)]
@@ -19,6 +23,7 @@ use std::fmt::Debug;
 pub enum Seating {
     /// Allocated (reserved) seating
     Allocated,
+    /// Reserved seating with some open (general admission) seats
     Select,
     /// Unallocated (general admission) seating
     Open,
@@ -48,6 +53,7 @@ pub enum SessionStatus {
 
 /// The sales channels via which tickets for a particular [Session] can be sold
 #[derive(Debug, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // this is not a state machine like clippy assumes
 pub struct SalesVia {
     /// Whether tickets can be sold via KIOSK
     pub kiosk: bool,
@@ -66,7 +72,7 @@ impl<'de> Deserialize<'de> for SalesVia {
         D: serde::Deserializer<'de>,
     {
         let vec: Vec<String> = Deserialize::deserialize(deserializer)?;
-        let mut sales_via = SalesVia {
+        let mut sales_via = Self {
             kiosk: false,
             pos: false,
             www: false,
@@ -88,51 +94,61 @@ impl<'de> Deserialize<'de> for SalesVia {
 }
 
 /// A list of [Session]s with some useful helper methods
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SessionList(Vec<Session>);
 impl SessionList {
-    /// Obtain the [`Vec<Session>`] contained within this [SessionList]
+    /// Obtain the [`Vec<Session>`] contained within this [`SessionList`]
+    #[must_use]
     pub fn into_vec(self) -> Vec<Session> {
         self.0
     }
 
-    /// Obtain a reference to the internal [`Vec<Session>`] contained within this [SessionList]
-    pub fn as_vec(&self) -> &Vec<Session> {
+    /// Obtain a reference to the internal [`Vec<Session>`] contained within
+    /// this [`SessionList`]
+    #[must_use]
+    pub const fn as_vec(&self) -> &Vec<Session> {
         &self.0
     }
 
-    /// Filter the sessions by a given screen ID, returning a new [SessionList]
-    pub fn filter_by_screen(self, screen_id: u32) -> SessionList {
+    /// Filter the sessions by a given screen ID, returning a new
+    /// [`SessionList`]
+    #[must_use]
+    pub fn filter_by_screen(self, screen_id: u32) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
             .filter(|session| session.screen_id == screen_id)
             .collect();
-        SessionList(filtered)
+        Self(filtered)
     }
 
-    /// Filter the sessions by a given film ID, returning a new [SessionList]
-    pub fn filter_by_film(self, film_id: &str) -> SessionList {
+    /// Filter the sessions by a given film ID, returning a new [`SessionList`]
+    #[must_use]
+    pub fn filter_by_film(self, film_id: &str) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
             .filter(|session| session.film_id == film_id)
             .collect();
-        SessionList(filtered)
+        Self(filtered)
     }
 
-    /// Filter the sessions to only those containing a given attribute ID, returning a new [SessionList]
-    pub fn filter_containing_attribute(self, attribute_id: &str) -> SessionList {
+    /// Filter the sessions to only those containing a given attribute ID,
+    /// returning a new [`SessionList`]
+    #[must_use]
+    pub fn filter_containing_attribute(self, attribute_id: &str) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
             .filter(|session| session.attributes.contains(&attribute_id.to_string()))
             .collect();
-        SessionList(filtered)
+        Self(filtered)
     }
 
-    /// Filter sessions whose `pre_show_start_time` is within the given date range, returning a new [SessionList]
-    pub fn filter_by_date_range(self, start: NaiveDate, end: NaiveDate) -> SessionList {
+    /// Filter sessions whose `pre_show_start_time` is within the given date
+    /// range, returning a new [`SessionList`]
+    #[must_use]
+    pub fn filter_by_date_range(self, start: NaiveDate, end: NaiveDate) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
@@ -141,12 +157,12 @@ impl SessionList {
                 date >= start && date <= end
             })
             .collect();
-        SessionList(filtered)
+        Self(filtered)
     }
 }
 impl From<Vec<Session>> for SessionList {
     fn from(sessions: Vec<Session>) -> Self {
-        SessionList(sessions)
+        Self(sessions)
     }
 }
 impl From<SessionList> for Vec<Session> {
@@ -156,7 +172,7 @@ impl From<SessionList> for Vec<Session> {
 }
 impl IntoIterator for SessionList {
     type Item = Session;
-    type IntoIter = std::vec::IntoIter<Session>;
+    type IntoIter = IntoIter<Session>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -219,12 +235,20 @@ pub struct Session {
     pub audio_language: Option<String>,
 }
 impl Session {
-    /// Get the [Film] associated with this [Session]
+    /// Get the [`Film`] associated with this [`Session`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
     pub async fn film(&self, client: &Client) -> ApiResult<Film> {
         client.get_film(&self.film_id).await
     }
 
-    /// Get the [FilmPackage] associated with this [Session], if any
+    /// Get the [`FilmPackage`] associated with this [`Session`], if any
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
     pub async fn film_package(&self, client: &Client) -> ApiResult<Option<FilmPackage>> {
         match &self.film_package_id {
             Some(id) => {
@@ -235,12 +259,20 @@ impl Session {
         }
     }
 
-    /// Get the [Screen] associated with this [Session]
+    /// Get the [`Screen`] associated with this [`Session`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
     pub async fn screen(&self, client: &Client) -> ApiResult<Screen> {
         client.get_screen(self.screen_id).await
     }
 
-    /// Get the list of [Attribute]s associated with this [Session]
+    /// Get the list of [Attribute]s associated with this [`Session`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
     pub async fn attributes(&self, client: &Client) -> ApiResult<Vec<Attribute>> {
         let mut attrs = Vec::new();
         for attr_id in &self.attributes {
@@ -251,6 +283,7 @@ impl Session {
     }
 
     /// Returns whether tickets can still be sold for this session
+    #[must_use]
     pub fn is_open_for_sales(&self) -> bool {
         let now = chrono::Utc::now().naive_utc();
         self.status == SessionStatus::Open

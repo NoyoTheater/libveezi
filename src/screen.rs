@@ -1,10 +1,10 @@
 //! A [`Screen`] on a specific Veezi [`Site`]
 
-use crate::client::Client;
-use crate::error::ApiResult;
-use crate::session::SessionList;
-use serde::Deserialize;
 use std::fmt::Debug;
+
+use serde::Deserialize;
+
+use crate::{client::Client, error::ApiResult, session::SessionList};
 
 /// A particular screen (auditorium) in the Veezi system
 #[derive(Deserialize, Debug, PartialEq, Eq)]
@@ -24,7 +24,11 @@ pub struct Screen {
     pub house_seats: u32,
 }
 impl Screen {
-    /// Get a list of all future [Session]s for this [Screen]
+    /// Get a list of all future [Session]s for this [`Screen`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
     pub async fn sessions(&self, client: &Client) -> ApiResult<SessionList> {
         Ok(client.list_sessions().await?.filter_by_screen(self.id))
     }

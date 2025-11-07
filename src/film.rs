@@ -2,12 +2,12 @@
 //!
 //! The primary type is [`Film`], which represents a film and its metadata.
 
-use crate::client::Client;
-use crate::error::ApiResult;
-use crate::session::SessionList;
+use std::fmt::Debug;
+
 use chrono::NaiveDateTime;
 use serde::Deserialize;
-use std::fmt::Debug;
+
+use crate::{client::Client, error::ApiResult, session::SessionList};
 
 /// The status of a particular [Film]
 #[derive(Deserialize, Debug, PartialEq, Eq)]
@@ -24,19 +24,24 @@ pub enum FilmStatus {
 /// The format of a particular [Film]
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 pub enum FilmFormat {
+    /// A 2D film
     #[serde(rename = "2D Film")]
     Film2D,
+    /// A 2D digital film
     #[serde(rename = "2D Digital")]
     Digital2D,
+    /// A 3D digital film
     #[serde(rename = "3D Digital")]
     Digital3D,
+    /// A 3D HFR (High Frame Rate) digital film
     #[serde(rename = "3D HFR")]
     Digital3DHFR,
+    /// Not a film (e.g., live event)
     #[serde(rename = "Not a Film")]
     NotAFilm,
 }
 
-/// A particular person associated with a [Film]
+/// A particular person associated with a [`Film`]
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Person {
@@ -105,29 +110,39 @@ pub struct Film {
 }
 impl Film {
     /// Get a list of all future [Session]s for this [Film]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
     pub async fn sessions(&self, client: &Client) -> ApiResult<SessionList> {
         Ok(client.list_sessions().await?.filter_by_film(&self.id))
     }
 
-    /// Get a list of all future [Session]s for this [Film] that should be available for online sales.
+    /// Get a list of all future [Session]s for this [Film] that should be
+    /// available for online sales.
     ///
     /// This asserts the following for each [Session]:
     /// - [`Session::sales_cut_off_time`] is in the future
     /// - [`Session::status`] is `SessionStatus::Open`
     /// - [`Session::show_type`] is `ShowType::Public`
     /// - [`Session::sales_via`] allows [`SalesVia::www`] sales
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
     pub async fn web_sessions(&self, client: &Client) -> ApiResult<SessionList> {
         Ok(client.list_web_sessions().await?.filter_by_film(&self.id))
     }
 
     /// Format the duration of the film as "Xh Ym" or "Xh"
+    #[must_use]
     pub fn formatted_duration(&self) -> String {
         let hours = self.duration / 60;
         let minutes = self.duration % 60;
         if minutes == 0 {
-            format!("{}h", hours)
+            format!("{hours}h")
         } else {
-            format!("{}h {}m", hours, minutes)
+            format!("{hours}h {minutes}m")
         }
     }
 }

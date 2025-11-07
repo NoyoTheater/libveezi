@@ -1,14 +1,20 @@
-//! Types representing screenable film packages (e.g. double features) with the Veezi API.
+//! Types representing screenable film packages (e.g. double features) with the
+//! Veezi API.
 //!
-//! The primary type is [`FilmPackage`], which represents a film package and its metadata.
+//! The primary type is [`FilmPackage`], which represents a film package and its
+//! metadata.
 
-use crate::client::Client;
-use crate::error::ApiResult;
-use crate::film::{Film, FilmStatus};
-use serde::Deserialize;
 use std::fmt::Debug;
 
-/// A particular film within a [FilmPackage]
+use serde::Deserialize;
+
+use crate::{
+    client::Client,
+    error::ApiResult,
+    film::{Film, FilmStatus},
+};
+
+/// A particular film within a [`FilmPackage`]
 #[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct PackageFilm {
@@ -26,13 +32,17 @@ pub struct PackageFilm {
     pub order: u32,
 }
 impl PackageFilm {
-    /// Get the full raw [Film] associated with this [PackageFilm]
+    /// Get the full raw [Film] associated with this [`PackageFilm`]
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
     pub async fn film(&self, client: &Client) -> ApiResult<Film> {
         client.get_film(&self.film_id).await
     }
 }
 
-/// A package of [PackageFilm]s in the Veezi system ("double feature")
+/// A package of [`PackageFilm`]s in the Veezi system ("double feature")
 #[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct FilmPackage {

@@ -9,6 +9,7 @@ where
 {
     #[derive(Deserialize)]
     #[serde(rename_all = "PascalCase")]
+    #[allow(clippy::missing_docs_in_private_items)]
     struct IdHelper {
         id: u32,
     }

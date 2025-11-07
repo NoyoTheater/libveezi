@@ -464,6 +464,72 @@ impl Client {
         Ok(film)
     }
 
+    /// Get a specific [`Film`] by its exact [`Film::title`]. If multiple films
+    /// have the same title, the first one found will be returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails, or None if
+    /// no film with the given title is found.
+    pub async fn get_film_by_title(&self, title: &str) -> ApiResult<Option<Film>> {
+        let films = self.list_films().await?;
+        Ok(films.into_iter().find(|film| film.title == title))
+    }
+
+    /// Get a specific [`Film`] by its exact [`Film::short_name`]. If multiple
+    /// films have the same short name, the first one found will be
+    /// returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails, or None if
+    /// no film with the given short name is found.
+    pub async fn get_film_by_short_name(&self, short_name: &str) -> ApiResult<Option<Film>> {
+        let films = self.list_films().await?;
+        Ok(films.into_iter().find(|film| film.short_name == short_name))
+    }
+
+    /// Get a specific [`Film`] by its exact [`Film::signage_text`]. If multiple
+    /// films have the same signage text, the first one found will be
+    /// returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails, or None if
+    /// no film with the given signage text is found.
+    pub async fn get_film_by_signage_text(&self, signage_text: &str) -> ApiResult<Option<Film>> {
+        let films = self.list_films().await?;
+        Ok(films
+            .into_iter()
+            .find(|film| film.signage_text == signage_text))
+    }
+
+    /// Get a list of all [`Film`]s with a specific [`Film::genre`] string.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_films_by_genre(&self, genre: &str) -> ApiResult<Vec<Film>> {
+        let films = self.list_films().await?;
+        Ok(films
+            .into_iter()
+            .filter(|film| film.genre == genre)
+            .collect())
+    }
+
+    /// Get a list of all [`Film`]s by a specific [`Film::distributor`].
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_films_by_distributor(&self, distributor: &str) -> ApiResult<Vec<Film>> {
+        let films = self.list_films().await?;
+        Ok(films
+            .into_iter()
+            .filter(|film| film.distributor == distributor)
+            .collect())
+    }
+
     /// Get only the films that have sessions scheduled in the included time
     /// range.
     ///
@@ -550,6 +616,35 @@ impl Client {
         if let Some(cache) = &self.film_package_list_cache {
             cache.invalidate_all();
         }
+    }
+
+    /// Get a specific [`FilmPackage`] by its exact [`FilmPackage::title`]. If
+    /// multiple packages have the same title, the first one found will be
+    /// returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails, or None if
+    /// no package with the given title is found.
+    pub async fn get_film_package_by_title(&self, title: &str) -> ApiResult<Option<FilmPackage>> {
+        let packages = self.list_film_packages().await?;
+        Ok(packages.into_iter().find(|package| package.title == title))
+    }
+
+    /// Get a list of all [`FilmPackage`]s containing a specific [`FilmId`].
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_film_packages_by_film_id(
+        &self,
+        film_id: &FilmId,
+    ) -> ApiResult<Vec<FilmPackage>> {
+        let packages = self.list_film_packages().await?;
+        Ok(packages
+            .into_iter()
+            .filter(|package| package.films.iter().any(|pf| pf.film_id == *film_id))
+            .collect())
     }
 
     /// Get a specific [`FilmPackage`] by its ID.
@@ -653,6 +748,21 @@ impl Client {
         let screen = fetch_raw.await?;
         cache.insert(id, screen.clone()).await;
         Ok(screen)
+    }
+
+    /// Get a specific [`Screen`] by its exact [`Screen::screen_number`]. If
+    /// multiple screens have the same screen number, the first one found will
+    /// be returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails, or None if
+    /// no screen with the given screen number is found.
+    pub async fn get_screen_by_number(&self, screen_number: String) -> ApiResult<Option<Screen>> {
+        let screens = self.list_screens().await?;
+        Ok(screens
+            .into_iter()
+            .find(|screen| screen.screen_number == screen_number))
     }
 
     /// Get the [`Site`] information for the current Veezi site.
@@ -764,5 +874,41 @@ impl Client {
         let attribute = fetch_raw.await?;
         cache.insert(id.clone(), attribute.clone()).await;
         Ok(attribute)
+    }
+
+    /// Get a specific [`Attribute`] by its exact [`Attribute::short_name`]. If
+    /// multiple attributes have the same short name, the first one found
+    /// will be returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails, or None if
+    /// no attribute with the given short name is found.
+    pub async fn get_attribute_by_short_name(
+        &self,
+        short_name: &str,
+    ) -> ApiResult<Option<Attribute>> {
+        let attributes = self.list_attributes().await?;
+        Ok(attributes
+            .into_iter()
+            .find(|attr| attr.short_name == short_name))
+    }
+
+    /// Get a specific [`Attribute`] by its exact [`Attribute::description`]. If
+    /// multiple attributes have the same description, the first one found
+    /// will be returned.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails, or None if
+    /// no attribute with the given description is found.
+    pub async fn get_attribute_by_description(
+        &self,
+        description: &str,
+    ) -> ApiResult<Option<Attribute>> {
+        let attributes = self.list_attributes().await?;
+        Ok(attributes
+            .into_iter()
+            .find(|attr| attr.description == description))
     }
 }

@@ -232,6 +232,165 @@ impl SessionList {
     pub fn iter(&self) -> impl Iterator<Item = &Session> {
         self.0.iter()
     }
+
+    /// Get the number of sessions in this [`SessionList`]
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Check if this [`SessionList`] is empty
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Filter sessions to only those happening today (in UTC), returning a new
+    /// [`SessionList`]
+    #[must_use]
+    pub fn filter_today(self) -> Self {
+        let today = chrono::Utc::now().naive_utc().date();
+        self.filter_by_date_range(today, today)
+    }
+
+    /// Filter sessions to only those happening tomorrow (in UTC), returning a
+    /// new [`SessionList`]
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if tomorrow's date cannot be calculated (which
+    /// should never happen in practice).
+    #[must_use]
+    pub fn filter_tomorrow(self) -> Self {
+        let tomorrow = chrono::Utc::now().naive_utc().date().succ_opt().expect("tomorrow should exist");
+        self.filter_by_date_range(tomorrow, tomorrow)
+    }
+
+    /// Filter sessions to only those for which tickets can still be sold,
+    /// returning a new [`SessionList`]
+    #[must_use]
+    pub fn filter_open_for_sales(self) -> Self {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(Session::is_open_for_sales)
+            .collect();
+        Self(filtered)
+    }
+
+    /// Filter sessions by a specific [`crate::session::SessionStatus`],
+    /// returning a new [`SessionList`]
+    #[must_use]
+    pub fn filter_by_status(self, status: SessionStatus) -> Self {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| session.status == status)
+            .collect();
+        Self(filtered)
+    }
+
+    /// Filter sessions by a specific [`FilmFormat`], returning a new
+    /// [`SessionList`]
+    #[must_use]
+    pub fn filter_by_format(self, format: FilmFormat) -> Self {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| session.film_format == format)
+            .collect();
+        Self(filtered)
+    }
+
+    /// Filter sessions to only those with available seats, returning a new
+    /// [`SessionList`]
+    #[must_use]
+    pub fn filter_with_available_seats(self) -> Self {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| session.seats_available > 0)
+            .collect();
+        Self(filtered)
+    }
+
+    /// Sort sessions by their start time (ascending), returning a new
+    /// [`SessionList`]
+    #[must_use]
+    pub fn sort_by_start_time(mut self) -> Self {
+        self.0.sort_by(|a, b| a.pre_show_start_time.cmp(&b.pre_show_start_time));
+        self
+    }
+
+    /// Sort sessions by their start time (descending), returning a new
+    /// [`SessionList`]
+    #[must_use]
+    pub fn sort_by_start_time_desc(mut self) -> Self {
+        self.0.sort_by(|a, b| b.pre_show_start_time.cmp(&a.pre_show_start_time));
+        self
+    }
+
+    /// Sort sessions by screen ID, returning a new [`SessionList`]
+    #[must_use]
+    pub fn sort_by_screen(mut self) -> Self {
+        self.0.sort_by_key(|session| session.screen_id.into_u32());
+        self
+    }
+
+    /// Get the total number of seats available across all sessions in this list
+    #[must_use]
+    pub fn total_available_seats(&self) -> u32 {
+        self.0.iter().map(|s| s.seats_available).sum()
+    }
+
+    /// Get the total number of seats sold across all sessions in this list
+    #[must_use]
+    pub fn total_sold_seats(&self) -> u32 {
+        self.0.iter().map(|s| s.seats_sold).sum()
+    }
+
+    /// Calculate the average number of seats sold per session (rounded down)
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn average_sold_seats(&self) -> u32 {
+        if self.0.is_empty() {
+            0
+        } else {
+            self.total_sold_seats() / (self.0.len() as u32)
+        }
+    }
+
+    /// Get sessions grouped by film ID, returning a vector of tuples where the
+    /// first element is the film ID and the second element is a vector of
+    /// references to the sessions for that film
+    #[must_use]
+    pub fn group_by_film(&self) -> Vec<(&FilmId, Vec<&Session>)> {
+        let mut grouped: Vec<(&FilmId, Vec<&Session>)> = Vec::new();
+        for session in &self.0 {
+            if let Some((_, sessions)) = grouped.iter_mut().find(|(id, _)| **id == session.film_id) {
+                sessions.push(session);
+            } else {
+                grouped.push((&session.film_id, vec![session]));
+            }
+        }
+        grouped
+    }
+
+    /// Get sessions grouped by screen ID, returning a vector of tuples where
+    /// the first element is the screen ID and the second element is a vector of
+    /// references to the sessions for that screen
+    #[must_use]
+    pub fn group_by_screen(&self) -> Vec<(ScreenId, Vec<&Session>)> {
+        let mut grouped: Vec<(ScreenId, Vec<&Session>)> = Vec::new();
+        for session in &self.0 {
+            if let Some((_, sessions)) = grouped.iter_mut().find(|(id, _)| *id == session.screen_id) {
+                sessions.push(session);
+            } else {
+                grouped.push((session.screen_id, vec![session]));
+            }
+        }
+        grouped
+    }
 }
 impl From<Vec<Session>> for SessionList {
     fn from(sessions: Vec<Session>) -> Self {

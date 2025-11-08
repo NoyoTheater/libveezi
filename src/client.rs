@@ -11,7 +11,7 @@ use serde::de::DeserializeOwned;
 use crate::{
     attr::{Attribute, AttributeId},
     error::ApiResult,
-    film::{Film, FilmId},
+    film::{Film, FilmId, FilmStatus},
     package::{FilmPackage, FilmPackageId},
     screen::{Screen, ScreenId},
     session::{Session, SessionId, SessionList},
@@ -118,11 +118,11 @@ impl ClientBuilder {
     #[must_use]
     pub const fn with_default_caching(self) -> Self {
         self.with_session_cache(Duration::from_secs(30), 1000)
-            .with_film_cache(Duration::from_mins(5), 500)
-            .with_film_package_cache(Duration::from_mins(5), 500)
-            .with_screen_cache(Duration::from_hours(1), 100)
-            .with_attribute_cache(Duration::from_mins(5), 500)
-            .with_site_cache(Duration::from_mins(5))
+            .with_film_cache(Duration::from_secs(300), 500)
+            .with_film_package_cache(Duration::from_secs(300), 500)
+            .with_screen_cache(Duration::from_secs(3600), 100)
+            .with_attribute_cache(Duration::from_secs(300), 500)
+            .with_site_cache(Duration::from_secs(300))
     }
 }
 
@@ -910,5 +910,106 @@ impl Client {
         Ok(attributes
             .into_iter()
             .find(|attr| attr.description == description))
+    }
+
+    /// Get all sessions scheduled for today (in UTC).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_sessions_today(&self) -> ApiResult<SessionList> {
+        Ok(self.list_sessions().await?.filter_today())
+    }
+
+    /// Get all sessions scheduled for tomorrow (in UTC).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_sessions_tomorrow(&self) -> ApiResult<SessionList> {
+        Ok(self.list_sessions().await?.filter_tomorrow())
+    }
+
+    /// Get all sessions that are currently open for sales.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_sessions_open_for_sales(&self) -> ApiResult<SessionList> {
+        Ok(self.list_sessions().await?.filter_open_for_sales())
+    }
+
+    /// Get all currently active films (films with status Active).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_active_films(&self) -> ApiResult<Vec<Film>> {
+        let films = self.list_films().await?;
+        Ok(films
+            .into_iter()
+            .filter(|film| film.status == FilmStatus::Active)
+            .collect())
+    }
+
+    /// Get all films that are currently showing (have sessions scheduled).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_films_now_showing(&self) -> ApiResult<Vec<Film>> {
+        let sessions = self.list_sessions().await?;
+        sessions.films(self).await
+    }
+
+    /// Get a map of film IDs to their session counts.
+    ///
+    /// This is useful for determining which films have the most scheduled
+    /// sessions.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn get_session_counts_by_film(&self) -> ApiResult<Vec<(FilmId, usize)>> {
+        let sessions = self.list_sessions().await?;
+        let grouped = sessions.group_by_film();
+        Ok(grouped
+            .into_iter()
+            .map(|(film_id, sessions)| (film_id.clone(), sessions.len()))
+            .collect())
+    }
+
+    /// Fetch multiple films by their IDs in a single batch operation.
+    ///
+    /// This is more convenient than calling `get_film` multiple times when you
+    /// need to fetch multiple films.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the API requests fail.
+    pub async fn get_films_batch(&self, film_ids: &[FilmId]) -> ApiResult<Vec<Film>> {
+        let mut films = Vec::new();
+        for film_id in film_ids {
+            let film = self.get_film(film_id).await?;
+            films.push(film);
+        }
+        Ok(films)
+    }
+
+    /// Fetch multiple sessions by their IDs in a single batch operation.
+    ///
+    /// This is more convenient than calling `get_session` multiple times when
+    /// you need to fetch multiple sessions.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the API requests fail.
+    pub async fn get_sessions_batch(&self, session_ids: &[SessionId]) -> ApiResult<Vec<Session>> {
+        let mut sessions = Vec::new();
+        for session_id in session_ids {
+            let session = self.get_session(*session_id).await?;
+            sessions.push(session);
+        }
+        Ok(sessions)
     }
 }

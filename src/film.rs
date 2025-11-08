@@ -190,4 +190,66 @@ impl Film {
             format!("{hours}h {minutes}m")
         }
     }
+
+    /// Check if the film is currently active
+    #[must_use]
+    pub const fn is_active(&self) -> bool {
+        matches!(self.status, FilmStatus::Active)
+    }
+
+    /// Check if the film is a 3D film (any 3D format)
+    #[must_use]
+    pub const fn is_3d(&self) -> bool {
+        matches!(
+            self.format,
+            FilmFormat::Digital3D | FilmFormat::Digital3DHFR
+        )
+    }
+
+    /// Check if the film is a 2D film (any 2D format)
+    #[must_use]
+    pub const fn is_2d(&self) -> bool {
+        matches!(self.format, FilmFormat::Film2D | FilmFormat::Digital2D)
+    }
+
+    /// Get the list of actors associated with this film
+    #[must_use]
+    pub fn actors(&self) -> Vec<&Person> {
+        self.people.iter().filter(|p| p.role == "Actor").collect()
+    }
+
+    /// Get the list of directors associated with this film
+    #[must_use]
+    pub fn directors(&self) -> Vec<&Person> {
+        self.people
+            .iter()
+            .filter(|p| p.role == "Director")
+            .collect()
+    }
+
+    /// Get a formatted string of actor names, separated by commas
+    #[must_use]
+    pub fn actors_formatted(&self) -> String {
+        self.actors()
+            .iter()
+            .map(|p| format!("{} {}", p.first_name, p.last_name))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Get a formatted string of director names, separated by commas
+    #[must_use]
+    pub fn directors_formatted(&self) -> String {
+        self.directors()
+            .iter()
+            .map(|p| format!("{} {}", p.first_name, p.last_name))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Get a display-friendly rating string, returning "NR" if no rating is set
+    #[must_use]
+    pub fn rating_display(&self) -> String {
+        self.rating.clone().unwrap_or_else(|| "NR".to_string())
+    }
 }

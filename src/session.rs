@@ -232,6 +232,46 @@ impl SessionList {
     pub fn iter(&self) -> impl Iterator<Item = &Session> {
         self.0.iter()
     }
+
+    /// Filter sessions by their status, returning a new [`SessionList`]
+    #[must_use]
+    pub fn filter_by_status(self, status: SessionStatus) -> Self {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| session.status == status)
+            .collect();
+        Self(filtered)
+    }
+
+    /// Filter sessions by film format, returning a new [`SessionList`]
+    #[must_use]
+    pub fn filter_by_format(self, format: FilmFormat) -> Self {
+        let filtered: Vec<Session> = self
+            .0
+            .into_iter()
+            .filter(|session| session.film_format == format)
+            .collect();
+        Self(filtered)
+    }
+
+    /// Get the total count of sessions in this [`SessionList`]
+    #[must_use]
+    pub const fn count(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Get the total number of available seats across all sessions in this [`SessionList`]
+    #[must_use]
+    pub fn total_available_seats(&self) -> u32 {
+        self.0.iter().map(|s| s.seats_available).sum()
+    }
+
+    /// Get the total number of sold seats across all sessions in this [`SessionList`]
+    #[must_use]
+    pub fn total_sold_seats(&self) -> u32 {
+        self.0.iter().map(|s| s.seats_sold).sum()
+    }
 }
 impl From<Vec<Session>> for SessionList {
     fn from(sessions: Vec<Session>) -> Self {

@@ -911,4 +911,132 @@ impl Client {
             .into_iter()
             .find(|attr| attr.description == description))
     }
+
+    // ==================== Time-based Convenience Methods ====================
+
+    /// Get all sessions scheduled for today.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if midnight or end of day cannot be represented
+    /// in the date/time system, which should never occur for valid dates.
+    pub async fn list_sessions_today(&self) -> ApiResult<SessionList> {
+        let today = chrono::Utc::now().naive_utc().date();
+        let start = today
+            .and_hms_opt(0, 0, 0)
+            .expect("midnight should be valid");
+        let end = today
+            .and_hms_opt(23, 59, 59)
+            .expect("end of day should be valid");
+
+        Ok(self.list_sessions().await?.filter_by_time_range(start, end))
+    }
+
+    /// Get all sessions scheduled for this week (from today through the next 7 days).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_sessions_this_week(&self) -> ApiResult<SessionList> {
+        let now = chrono::Utc::now().naive_utc();
+        let end = now + chrono::Duration::days(7);
+
+        Ok(self.list_sessions().await?.filter_by_time_range(now, end))
+    }
+
+    /// Get all web sessions scheduled for today.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if midnight or end of day cannot be represented
+    /// in the date/time system, which should never occur for valid dates.
+    pub async fn list_web_sessions_today(&self) -> ApiResult<SessionList> {
+        let today = chrono::Utc::now().naive_utc().date();
+        let start = today
+            .and_hms_opt(0, 0, 0)
+            .expect("midnight should be valid");
+        let end = today
+            .and_hms_opt(23, 59, 59)
+            .expect("end of day should be valid");
+
+        Ok(self
+            .list_web_sessions()
+            .await?
+            .filter_by_time_range(start, end))
+    }
+
+    /// Get all web sessions scheduled for this week (from today through the next 7 days).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_web_sessions_this_week(&self) -> ApiResult<SessionList> {
+        let now = chrono::Utc::now().naive_utc();
+        let end = now + chrono::Duration::days(7);
+
+        Ok(self
+            .list_web_sessions()
+            .await?
+            .filter_by_time_range(now, end))
+    }
+
+    /// Get only the films that have sessions scheduled for today.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_films_with_sessions_today(&self) -> ApiResult<Vec<Film>> {
+        self.list_sessions_today().await?.films(self).await
+    }
+
+    /// Get only the films that have sessions scheduled for this week.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    pub async fn list_films_with_sessions_this_week(&self) -> ApiResult<Vec<Film>> {
+        self.list_sessions_this_week().await?.films(self).await
+    }
+
+    // ==================== Batch Operation Methods ====================
+
+    /// Get multiple films by their IDs in a batch operation.
+    /// This is more efficient than calling `get_film` multiple times
+    /// as it can leverage caching better.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the API requests fail.
+    pub async fn get_films_by_ids(&self, ids: &[FilmId]) -> ApiResult<Vec<Film>> {
+        let mut films = Vec::with_capacity(ids.len());
+        for id in ids {
+            let film = self.get_film(id).await?;
+            films.push(film);
+        }
+        Ok(films)
+    }
+
+    /// Get multiple sessions by their IDs in a batch operation.
+    /// This is more efficient than calling `get_session` multiple times
+    /// as it can leverage caching better.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if any of the API requests fail.
+    pub async fn get_sessions_by_ids(&self, ids: &[SessionId]) -> ApiResult<Vec<Session>> {
+        let mut sessions = Vec::with_capacity(ids.len());
+        for id in ids {
+            let session = self.get_session(*id).await?;
+            sessions.push(session);
+        }
+        Ok(sessions)
+    }
 }

@@ -262,7 +262,11 @@ impl SessionList {
     /// should never happen in practice).
     #[must_use]
     pub fn filter_tomorrow(self) -> Self {
-        let tomorrow = chrono::Utc::now().naive_utc().date().succ_opt().expect("tomorrow should exist");
+        let tomorrow = chrono::Utc::now()
+            .naive_utc()
+            .date()
+            .succ_opt()
+            .expect("tomorrow should exist");
         self.filter_by_date_range(tomorrow, tomorrow)
     }
 
@@ -318,7 +322,8 @@ impl SessionList {
     /// [`SessionList`]
     #[must_use]
     pub fn sort_by_start_time(mut self) -> Self {
-        self.0.sort_by(|a, b| a.pre_show_start_time.cmp(&b.pre_show_start_time));
+        self.0
+            .sort_by(|a, b| a.pre_show_start_time.cmp(&b.pre_show_start_time));
         self
     }
 
@@ -326,7 +331,8 @@ impl SessionList {
     /// [`SessionList`]
     #[must_use]
     pub fn sort_by_start_time_desc(mut self) -> Self {
-        self.0.sort_by(|a, b| b.pre_show_start_time.cmp(&a.pre_show_start_time));
+        self.0
+            .sort_by(|a, b| b.pre_show_start_time.cmp(&a.pre_show_start_time));
         self
     }
 
@@ -367,7 +373,8 @@ impl SessionList {
     pub fn group_by_film(&self) -> Vec<(&FilmId, Vec<&Session>)> {
         let mut grouped: Vec<(&FilmId, Vec<&Session>)> = Vec::new();
         for session in &self.0 {
-            if let Some((_, sessions)) = grouped.iter_mut().find(|(id, _)| **id == session.film_id) {
+            if let Some((_, sessions)) = grouped.iter_mut().find(|(id, _)| **id == session.film_id)
+            {
                 sessions.push(session);
             } else {
                 grouped.push((&session.film_id, vec![session]));
@@ -383,7 +390,8 @@ impl SessionList {
     pub fn group_by_screen(&self) -> Vec<(ScreenId, Vec<&Session>)> {
         let mut grouped: Vec<(ScreenId, Vec<&Session>)> = Vec::new();
         for session in &self.0 {
-            if let Some((_, sessions)) = grouped.iter_mut().find(|(id, _)| *id == session.screen_id) {
+            if let Some((_, sessions)) = grouped.iter_mut().find(|(id, _)| *id == session.screen_id)
+            {
                 sessions.push(session);
             } else {
                 grouped.push((session.screen_id, vec![session]));

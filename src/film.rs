@@ -200,7 +200,10 @@ impl Film {
     /// Check if the film is a 3D film (any 3D format)
     #[must_use]
     pub const fn is_3d(&self) -> bool {
-        matches!(self.format, FilmFormat::Digital3D | FilmFormat::Digital3DHFR)
+        matches!(
+            self.format,
+            FilmFormat::Digital3D | FilmFormat::Digital3DHFR
+        )
     }
 
     /// Check if the film is a 2D film (any 2D format)
@@ -218,7 +221,10 @@ impl Film {
     /// Get the list of directors associated with this film
     #[must_use]
     pub fn directors(&self) -> Vec<&Person> {
-        self.people.iter().filter(|p| p.role == "Director").collect()
+        self.people
+            .iter()
+            .filter(|p| p.role == "Director")
+            .collect()
     }
 
     /// Get a formatted string of actor names, separated by commas

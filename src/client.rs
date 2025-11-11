@@ -1,6 +1,11 @@
 //! The [`Client`] for interfacing with the Veezi API
 
-use std::{fmt::Debug, time::Duration};
+use std::{
+    fmt::{Debug, Display},
+    future::Future,
+    hash::Hash,
+    time::Duration,
+};
 
 use chrono::{NaiveDate, NaiveDateTime};
 use log::debug;
@@ -164,6 +169,23 @@ pub struct Client {
     site_cache: Option<Cache<(), Site>>,
 }
 impl Client {
+    /// Helper to build a cache from an optional (ttl, max) tuple
+    fn build_cache<K, V>(config: Option<(Duration, u64)>) -> Option<Cache<K, V>>
+    where
+        K: Hash + Eq + Send + Sync + 'static,
+        V: Clone + Send + Sync + 'static,
+    {
+        config.map(|(ttl, max)| CacheBuilder::new(max).time_to_live(ttl).build())
+    }
+
+    /// Helper to build a list cache (max capacity of 1) from an optional (ttl, max) tuple
+    fn build_list_cache<V>(config: Option<(Duration, u64)>) -> Option<Cache<(), V>>
+    where
+        V: Clone + Send + Sync + 'static,
+    {
+        config.map(|(ttl, _)| CacheBuilder::new(1).time_to_live(ttl).build())
+    }
+
     /// Create a new Veezi API client from a given base URL, access token, and
     /// [`reqwest::Client`]
     ///
@@ -190,28 +212,17 @@ impl Client {
             base,
             token,
 
-            session_cache: session_cache
-                .map(|(ttl, max)| CacheBuilder::new(max).time_to_live(ttl).build()),
-            session_list_cache: session_cache
-                .map(|(ttl, _)| CacheBuilder::new(1).time_to_live(ttl).build()),
-            web_session_list_cache: session_cache
-                .map(|(ttl, _)| CacheBuilder::new(1).time_to_live(ttl).build()),
-            film_cache: film_cache
-                .map(|(ttl, max)| CacheBuilder::new(max).time_to_live(ttl).build()),
-            film_list_cache: film_cache
-                .map(|(ttl, _)| CacheBuilder::new(1).time_to_live(ttl).build()),
-            film_package_cache: film_package_cache
-                .map(|(ttl, max)| CacheBuilder::new(max).time_to_live(ttl).build()),
-            film_package_list_cache: film_package_cache
-                .map(|(ttl, _)| CacheBuilder::new(1).time_to_live(ttl).build()),
-            screen_cache: screen_cache
-                .map(|(ttl, max)| CacheBuilder::new(max).time_to_live(ttl).build()),
-            screen_list_cache: screen_cache
-                .map(|(ttl, _)| CacheBuilder::new(1).time_to_live(ttl).build()),
-            attribute_cache: attribute_cache
-                .map(|(ttl, max)| CacheBuilder::new(max).time_to_live(ttl).build()),
-            attribute_list_cache: attribute_cache
-                .map(|(ttl, _)| CacheBuilder::new(1).time_to_live(ttl).build()),
+            session_cache: Self::build_cache(session_cache),
+            session_list_cache: Self::build_list_cache(session_cache),
+            web_session_list_cache: Self::build_list_cache(session_cache),
+            film_cache: Self::build_cache(film_cache),
+            film_list_cache: Self::build_list_cache(film_cache),
+            film_package_cache: Self::build_cache(film_package_cache),
+            film_package_list_cache: Self::build_list_cache(film_package_cache),
+            screen_cache: Self::build_cache(screen_cache),
+            screen_list_cache: Self::build_list_cache(screen_cache),
+            attribute_cache: Self::build_cache(attribute_cache),
+            attribute_list_cache: Self::build_list_cache(attribute_cache),
             site_cache: site_cache.map(|ttl| CacheBuilder::new(1).time_to_live(ttl).build()),
         })
     }
@@ -243,6 +254,70 @@ impl Client {
         debug!(target: "libveezi-http", "OK: {resp:?}");
 
         Ok(resp)
+    }
+
+    /// Generic helper for getting an item by ID with optional caching
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    async fn get_cached<K, V>(
+        &self,
+        cache: Option<&Cache<K, V>>,
+        key: &K,
+        fetch: impl Future<Output = ApiResult<V>>,
+        type_name: &str,
+    ) -> ApiResult<V>
+    where
+        K: Hash + Eq + Clone + Display + Send + Sync + 'static,
+        V: Clone + Send + Sync + 'static,
+    {
+        // Fetch from API if no cache is configured
+        let Some(cache_ref) = cache else {
+            return fetch.await;
+        };
+
+        // Try to get from cache
+        if let Some(cached) = cache_ref.get(key).await {
+            debug!("{type_name} cache hit for ID {key}");
+            return Ok(cached);
+        }
+
+        debug!("{type_name} cache miss for ID {key}, fetching from API");
+        let item = fetch.await?;
+        cache_ref.insert(key.clone(), item.clone()).await;
+        Ok(item)
+    }
+
+    /// Generic helper for listing items with optional caching
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the API request fails.
+    async fn list_cached<V>(
+        &self,
+        list_cache: Option<&Cache<(), V>>,
+        fetch: impl Future<Output = ApiResult<V>>,
+        type_name: &str,
+    ) -> ApiResult<V>
+    where
+        V: Clone + Send + Sync + 'static,
+    {
+        // Fetch from API if no cache is configured
+        let Some(cache) = list_cache else {
+            return fetch.await;
+        };
+
+        // Try to get from cache
+        if let Some(cached) = cache.get(&()).await {
+            debug!("{type_name} list cache hit");
+            return Ok(cached);
+        }
+
+        debug!("{type_name} list cache miss, fetching from API");
+        let items = fetch.await?;
+        cache.insert((), items.clone()).await;
+        Ok(items)
     }
 
     /// Invalidate all cached data
@@ -365,23 +440,13 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn get_session(&self, id: SessionId) -> ApiResult<Session> {
-        let fetch_raw = async { self.get_json::<Session>(&format!("v1/session/{id}")).await };
-
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.session_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(&id).await {
-            debug!("Session cache hit for ID {id}");
-            return Ok(cached);
-        }
-
-        debug!("Session cache miss for ID {id}, fetching from API");
-        let session = fetch_raw.await?;
-        cache.insert(id, session.clone()).await;
-        Ok(session)
+        self.get_cached(
+            self.session_cache.as_ref(),
+            &id,
+            self.get_json::<Session>(&format!("v1/session/{id}")),
+            "Session",
+        )
+        .await
     }
 
     /// Get a list of all [Film]s in the Veezi system.
@@ -390,24 +455,15 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn list_films(&self) -> ApiResult<Vec<Film>> {
-        // v4/film
+        let films = self
+            .list_cached(
+                self.film_list_cache.as_ref(),
+                self.get_json::<Vec<Film>>("v4/film"),
+                "Film",
+            )
+            .await?;
 
-        let fetch_raw = async { self.get_json::<Vec<Film>>("v4/film").await };
-
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.film_list_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(&()).await {
-            debug!("Film list cache hit");
-            return Ok(cached);
-        }
-
-        debug!("Film list cache miss, fetching from API");
-        let films = fetch_raw.await?;
-        cache.insert((), films.clone()).await;
+        // Populate individual film cache if configured
         if let Some(film_cache) = &self.film_cache {
             for film in &films {
                 film_cache.insert(film.id.clone(), film.clone()).await;
@@ -442,26 +498,13 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn get_film(&self, id: &FilmId) -> ApiResult<Film> {
-        let fetch_raw = async {
-            self.get_json::<Film>(&format!("v4/film/{}", id.as_str()))
-                .await
-        };
-
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.film_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(id).await {
-            debug!("Film cache hit for ID {id}");
-            return Ok(cached);
-        }
-
-        debug!("Film cache miss for ID {id}, fetching from API");
-        let film = fetch_raw.await?;
-        cache.insert(id.clone(), film.clone()).await;
-        Ok(film)
+        self.get_cached(
+            self.film_cache.as_ref(),
+            id,
+            self.get_json::<Film>(&format!("v4/film/{}", id.as_str())),
+            "Film",
+        )
+        .await
     }
 
     /// Get a specific [`Film`] by its exact [`Film::title`]. If multiple films
@@ -574,22 +617,15 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn list_film_packages(&self) -> ApiResult<Vec<FilmPackage>> {
-        let fetch_raw = async { self.get_json::<Vec<FilmPackage>>("v1/filmpackage").await };
+        let packages = self
+            .list_cached(
+                self.film_package_list_cache.as_ref(),
+                self.get_json::<Vec<FilmPackage>>("v1/filmpackage"),
+                "FilmPackage",
+            )
+            .await?;
 
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.film_package_list_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(&()).await {
-            debug!("FilmPackage list cache hit");
-            return Ok(cached);
-        }
-
-        debug!("FilmPackage list cache miss, fetching from API");
-        let packages = fetch_raw.await?;
-        cache.insert((), packages.clone()).await;
+        // Populate individual package cache if configured
         if let Some(package_cache) = &self.film_package_cache {
             for package in &packages {
                 package_cache.insert(package.id, package.clone()).await;
@@ -653,26 +689,13 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn get_film_package(&self, id: FilmPackageId) -> ApiResult<FilmPackage> {
-        let fetch_raw = async {
-            self.get_json::<FilmPackage>(&format!("v1/filmpackage/{id}"))
-                .await
-        };
-
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.film_package_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(&id).await {
-            debug!("FilmPackage cache hit for ID {id}");
-            return Ok(cached);
-        }
-
-        debug!("FilmPackage cache miss for ID {id}, fetching from API");
-        let package = fetch_raw.await?;
-        cache.insert(id, package.clone()).await;
-        Ok(package)
+        self.get_cached(
+            self.film_package_cache.as_ref(),
+            &id,
+            self.get_json::<FilmPackage>(&format!("v1/filmpackage/{id}")),
+            "FilmPackage",
+        )
+        .await
     }
 
     /// Get a list of all [`Screen`]s in the current site.
@@ -681,22 +704,15 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn list_screens(&self) -> ApiResult<Vec<Screen>> {
-        let fetch_raw = async { self.get_json::<Vec<Screen>>("v1/screen").await };
+        let screens = self
+            .list_cached(
+                self.screen_list_cache.as_ref(),
+                self.get_json::<Vec<Screen>>("v1/screen"),
+                "Screen",
+            )
+            .await?;
 
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.screen_list_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(&()).await {
-            debug!("Screen list cache hit");
-            return Ok(cached);
-        }
-
-        debug!("Screen list cache miss, fetching from API");
-        let screens = fetch_raw.await?;
-        cache.insert((), screens.clone()).await;
+        // Populate individual screen cache if configured
         if let Some(screen_cache) = &self.screen_cache {
             for screen in &screens {
                 screen_cache.insert(screen.id, screen.clone()).await;
@@ -731,23 +747,13 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn get_screen(&self, id: ScreenId) -> ApiResult<Screen> {
-        let fetch_raw = async { self.get_json::<Screen>(&format!("v1/screen/{id}")).await };
-
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.screen_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(&id).await {
-            debug!("Screen cache hit for ID {id}");
-            return Ok(cached);
-        }
-
-        debug!("Screen cache miss for ID {id}, fetching from API");
-        let screen = fetch_raw.await?;
-        cache.insert(id, screen.clone()).await;
-        Ok(screen)
+        self.get_cached(
+            self.screen_cache.as_ref(),
+            &id,
+            self.get_json::<Screen>(&format!("v1/screen/{id}")),
+            "Screen",
+        )
+        .await
     }
 
     /// Get a specific [`Screen`] by its exact [`Screen::screen_number`]. If
@@ -802,22 +808,15 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn list_attributes(&self) -> ApiResult<Vec<Attribute>> {
-        let fetch_raw = async { self.get_json::<Vec<Attribute>>("v1/attribute").await };
+        let attributes = self
+            .list_cached(
+                self.attribute_list_cache.as_ref(),
+                self.get_json::<Vec<Attribute>>("v1/attribute"),
+                "Attribute",
+            )
+            .await?;
 
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.attribute_list_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(&()).await {
-            debug!("Attribute list cache hit");
-            return Ok(cached);
-        }
-
-        debug!("Attribute list cache miss, fetching from API");
-        let attributes = fetch_raw.await?;
-        cache.insert((), attributes.clone()).await;
+        // Populate individual attribute cache if configured
         if let Some(attribute_cache) = &self.attribute_cache {
             for attribute in &attributes {
                 attribute_cache
@@ -854,26 +853,13 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn get_attribute(&self, id: &AttributeId) -> ApiResult<Attribute> {
-        let fetch_raw = async {
-            self.get_json::<Attribute>(&format!("v1/attribute/{}", id.as_str()))
-                .await
-        };
-
-        // Fetch from API if no cache is configured
-        let Some(cache) = &self.attribute_cache else {
-            return fetch_raw.await;
-        };
-
-        // Try to get from cache
-        if let Some(cached) = cache.get(id).await {
-            debug!("Attribute cache hit for ID {id}");
-            return Ok(cached);
-        }
-
-        debug!("Attribute cache miss for ID {id}, fetching from API");
-        let attribute = fetch_raw.await?;
-        cache.insert(id.clone(), attribute.clone()).await;
-        Ok(attribute)
+        self.get_cached(
+            self.attribute_cache.as_ref(),
+            id,
+            self.get_json::<Attribute>(&format!("v1/attribute/{}", id.as_str())),
+            "Attribute",
+        )
+        .await
     }
 
     /// Get a specific [`Attribute`] by its exact [`Attribute::short_name`]. If

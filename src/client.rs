@@ -1,6 +1,11 @@
 //! The [`Client`] for interfacing with the Veezi API
 
-use std::{fmt::{Debug, Display}, future::Future, hash::Hash, time::Duration};
+use std::{
+    fmt::{Debug, Display},
+    future::Future,
+    hash::Hash,
+    time::Duration,
+};
 
 use chrono::{NaiveDate, NaiveDateTime};
 use log::debug;

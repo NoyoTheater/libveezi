@@ -2,7 +2,8 @@
 
 use std::{fmt::Debug, time::Duration};
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, NaiveDate};
+use chrono_tz::Tz;
 use log::debug;
 use moka::future::{Cache, CacheBuilder};
 use reqwest::Url;
@@ -14,7 +15,7 @@ use crate::{
     film::{Film, FilmId},
     package::{FilmPackage, FilmPackageId},
     screen::{Screen, ScreenId},
-    session::{Session, SessionId, SessionList},
+    session::{NaiveSession, Session, SessionId, SessionList},
     site::Site,
 };
 
@@ -263,9 +264,14 @@ impl Client {
     /// This function will return an error if the API request fails.
     pub async fn list_sessions(&self) -> ApiResult<SessionList> {
         let fetch_raw = async {
-            Ok(SessionList::from(
-                self.get_json::<Vec<Session>>("v1/session").await?,
-            ))
+            let naive_sessions = self.get_json::<Vec<NaiveSession>>("v1/session").await?;
+            let site = self.get_site().await?;
+            let sessions = naive_sessions
+                .into_iter()
+                .map(|naive| Session::from_naive_and_site(naive, &site))
+                .collect::<Vec<_>>();
+
+            Ok(SessionList::from(sessions))
         };
 
         // Fetch from API if no cache is configured
@@ -324,9 +330,14 @@ impl Client {
     /// This function will return an error if the API request fails.
     pub async fn list_web_sessions(&self) -> ApiResult<SessionList> {
         let fetch_raw = async {
-            Ok(SessionList::from(
-                self.get_json::<Vec<Session>>("v1/websession").await?,
-            ))
+            let naive_sessions = self.get_json::<Vec<NaiveSession>>("v1/websession").await?;
+            let site = self.get_site().await?;
+            let sessions = naive_sessions
+                .into_iter()
+                .map(|naive| Session::from_naive_and_site(naive, &site))
+                .collect::<Vec<_>>();
+
+            Ok(SessionList::from(sessions))
         };
 
         // Fetch from API if no cache is configured
@@ -345,7 +356,8 @@ impl Client {
         cache.insert((), sessions.clone()).await;
         if let Some(session_cache) = &self.session_cache {
             for session in sessions.iter() {
-                // Although we are operating on only a subset of sessions, cache what we have
+                // Although we are operating on only a subset of sessions, cache
+                // what we have
                 session_cache.insert(session.id, session.clone()).await;
             }
         }
@@ -365,7 +377,14 @@ impl Client {
     ///
     /// This function will return an error if the API request fails.
     pub async fn get_session(&self, id: SessionId) -> ApiResult<Session> {
-        let fetch_raw = async { self.get_json::<Session>(&format!("v1/session/{id}")).await };
+        let fetch_raw = async {
+            let naive_session = self
+                .get_json::<NaiveSession>(&format!("v1/session/{id}"))
+                .await?;
+            let site = self.get_site().await?;
+            let session = Session::from_naive_and_site(naive_session, &site);
+            Ok(session)
+        };
 
         // Fetch from API if no cache is configured
         let Some(cache) = &self.session_cache else {
@@ -538,8 +557,8 @@ impl Client {
     /// This function will return an error if the API request fails.
     pub async fn list_films_with_sessions_in_time_range(
         &self,
-        start: NaiveDateTime,
-        end: NaiveDateTime,
+        start: DateTime<Tz>,
+        end: DateTime<Tz>,
     ) -> ApiResult<Vec<Film>> {
         // using our existing methods, no http
         self.list_sessions()

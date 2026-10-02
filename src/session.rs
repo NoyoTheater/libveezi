@@ -5,11 +5,14 @@
 
 use std::{
     fmt::{self, Debug, Display, Formatter},
+    str::FromStr,
     vec::IntoIter,
 };
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, NaiveDate, NaiveDateTime};
+use chrono_tz::Tz;
 use serde::Deserialize;
+use windows_timezones::WindowsTimezone;
 
 use crate::{
     attr::{Attribute, AttributeId},
@@ -18,6 +21,7 @@ use crate::{
     film::{Film, FilmFormat, FilmId},
     package::{FilmPackage, FilmPackageId},
     screen::{Screen, ScreenId},
+    site::Site,
 };
 
 /// The seating type for a particular [Session]
@@ -151,7 +155,7 @@ impl SessionList {
     /// Filter sessions whose `pre_show_start_time` is within the given time
     /// range, returning a new [`SessionList`]
     #[must_use]
-    pub fn filter_by_time_range(self, start: NaiveDateTime, end: NaiveDateTime) -> Self {
+    pub fn filter_by_time_range(self, start: DateTime<Tz>, end: DateTime<Tz>) -> Self {
         let filtered: Vec<Session> = self
             .0
             .into_iter()
@@ -168,10 +172,16 @@ impl SessionList {
     #[must_use]
     #[allow(clippy::missing_panics_doc)]
     pub fn filter_by_date_range(self, start: NaiveDate, end: NaiveDate) -> Self {
-        self.filter_by_time_range(
-            start.and_hms_opt(0, 0, 0).expect("midnight should exist"),
-            end.and_hms_opt(0, 0, 0).expect("midnight should exist"),
-        )
+        let filtered = self
+            .0
+            .into_iter()
+            .filter(|session| {
+                let date = session.pre_show_start_time.date_naive();
+                date >= start && date <= end
+            })
+            .collect();
+
+        Self(filtered)
     }
 
     /// Group a list of sessions by date, returning a vector of tuples where the
@@ -181,14 +191,14 @@ impl SessionList {
     pub fn group_by_date(&self) -> Vec<(NaiveDate, Vec<&Session>)> {
         let mut grouped: Vec<(NaiveDate, Vec<&Session>)> = Vec::new();
         for session in &self.0 {
-            let date = session.pre_show_start_time.date();
+            let date = session.pre_show_start_time.date_naive();
             if let Some((_, sessions)) = grouped.iter_mut().find(|(d, _)| *d == date) {
                 sessions.push(session);
             } else {
                 grouped.push((date, vec![session]));
             }
         }
-        grouped.sort_by(|(a, _), (b, _)| a.cmp(b));
+        grouped.sort_by_key(|(a, _)| *a);
         grouped
     }
 
@@ -278,9 +288,65 @@ impl Display for SessionId {
     }
 }
 
-/// A particular screening session of a [Film]
+/// The naive Veezi API deserialization of a [Session], with no associated time
+/// zone information.
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "PascalCase")]
+pub(crate) struct NaiveSession {
+    /// The unique ID of the session
+    id: SessionId,
+    /// The ID of the film being shown in this session
+    film_id: FilmId,
+    /// The ID of the film package (if any) associated with this session
+    film_package_id: Option<FilmPackageId>,
+    /// The title of the film being shown in this session
+    title: String,
+    /// The screen ID where this session is being shown
+    screen_id: ScreenId,
+    /// The seating type for this session
+    seating: Seating,
+    /// Whether complimentary tickets are allowed for this session
+    are_complimentaries_allowed: bool,
+    /// The show type for this session
+    show_type: ShowType,
+    /// The sales channels via which tickets for this session can be sold
+    sales_via: SalesVia,
+    /// The status of this session
+    status: SessionStatus,
+    /// The time this session starts
+    pre_show_start_time: NaiveDateTime,
+    /// The time this session ends sales
+    sales_cut_off_time: NaiveDateTime,
+    /// The time this session's feature starts
+    feature_start_time: NaiveDateTime,
+    /// The time this session's feature ends
+    feature_end_time: NaiveDateTime,
+    /// The time this session's cleanup ends
+    cleanup_end_time: NaiveDateTime,
+    /// Whether tickets for this session are sold out
+    tickets_sold_out: bool,
+    /// Whether there are few tickets left for this session
+    few_tickets_left: bool,
+    /// The number of seats available for this session
+    seats_available: u32,
+    /// The number of seats held for this session
+    seats_held: u32,
+    /// The number of house seats for this session
+    seats_house: u32,
+    /// The number of seats sold for this session
+    seats_sold: u32,
+    /// The format of the film being shown in this session
+    film_format: FilmFormat,
+    /// The price card name associated with this session
+    price_card_name: String,
+    /// The list of attribute IDs associated with this session
+    attributes: Vec<AttributeId>,
+    /// The audio language of the film being shown in this session
+    audio_language: Option<String>,
+}
+
+/// A particular screening session of a [Film]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Session {
     /// The unique ID of the session
     pub id: SessionId,
@@ -303,15 +369,15 @@ pub struct Session {
     /// The status of this session
     pub status: SessionStatus,
     /// The time this session starts
-    pub pre_show_start_time: NaiveDateTime,
+    pub pre_show_start_time: DateTime<Tz>,
     /// The time this session ends sales
-    pub sales_cut_off_time: NaiveDateTime,
+    pub sales_cut_off_time: DateTime<Tz>,
     /// The time this session's feature starts
-    pub feature_start_time: NaiveDateTime,
+    pub feature_start_time: DateTime<Tz>,
     /// The time this session's feature ends
-    pub feature_end_time: NaiveDateTime,
+    pub feature_end_time: DateTime<Tz>,
     /// The time this session's cleanup ends
-    pub cleanup_end_time: NaiveDateTime,
+    pub cleanup_end_time: DateTime<Tz>,
     /// Whether tickets for this session are sold out
     pub tickets_sold_out: bool,
     /// Whether there are few tickets left for this session
@@ -334,6 +400,48 @@ pub struct Session {
     pub audio_language: Option<String>,
 }
 impl Session {
+    /// Convert a [`NaiveSession`] into a [`Session`] given the specific local
+    /// [`Tz`] of the site.
+    pub(crate) fn from_naive_and_tz(session: NaiveSession, tz: Tz) -> Self {
+        Self {
+            id: session.id,
+            film_id: session.film_id,
+            film_package_id: session.film_package_id,
+            title: session.title,
+            screen_id: session.screen_id,
+            seating: session.seating,
+            are_complimentaries_allowed: session.are_complimentaries_allowed,
+            show_type: session.show_type,
+            sales_via: session.sales_via,
+            status: session.status,
+            pre_show_start_time: session.pre_show_start_time.and_local_timezone(tz).unwrap(),
+            sales_cut_off_time: session.sales_cut_off_time.and_local_timezone(tz).unwrap(),
+            feature_start_time: session.feature_start_time.and_local_timezone(tz).unwrap(),
+            feature_end_time: session.feature_end_time.and_local_timezone(tz).unwrap(),
+            cleanup_end_time: session.cleanup_end_time.and_local_timezone(tz).unwrap(),
+            tickets_sold_out: session.tickets_sold_out,
+            few_tickets_left: session.few_tickets_left,
+            seats_available: session.seats_available,
+            seats_held: session.seats_held,
+            seats_house: session.seats_house,
+            seats_sold: session.seats_sold,
+            film_format: session.film_format,
+            price_card_name: session.price_card_name,
+            attributes: session.attributes,
+            audio_language: session.audio_language,
+        }
+    }
+
+    /// Convert a [`NaiveSession`] into a [`Session`] given a [`Site`].
+    pub(crate) fn from_naive_and_site(session: NaiveSession, site: &Site) -> Self {
+        Self::from_naive_and_tz(
+            session,
+            WindowsTimezone::from_str(&site.time_zone_identifier)
+                .expect("Veezi API should provide a valid Windows timezone")
+                .into(),
+        )
+    }
+
     /// Get the [`Film`] associated with this [`Session`]
     ///
     /// # Errors
@@ -384,7 +492,7 @@ impl Session {
     /// Returns whether tickets can still be sold for this session
     #[must_use]
     pub fn is_open_for_sales(&self) -> bool {
-        let now = chrono::Utc::now().naive_utc();
+        let now = chrono::Utc::now();
         self.status == SessionStatus::Open
             && now < self.sales_cut_off_time
             && self.seats_available > 0
